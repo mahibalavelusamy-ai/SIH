@@ -179,6 +179,65 @@ export const AicteMonitoringView: React.FC = () => {
     document.body.removeChild(link);
   };
 
+  // Export Non-Compliance Breach Notices CSV
+  const handleExportBreachNotices = () => {
+    const breaches = matrixData.filter((d) => d.status === 'REGULAR_EXCESS' || d.status === 'QUOTA_EXCESS');
+    if (breaches.length === 0) {
+      alert('No non-compliance breaches found in current filtered selection.');
+      return;
+    }
+
+    const headers = [
+      'NoticeRef',
+      'IssueDate',
+      'InstitutionCode',
+      'InstitutionName',
+      'AcademicYear',
+      'ProgrammeCode',
+      'ProgrammeName',
+      'BreachClassification',
+      'ApprovedStatutoryQuota',
+      'ReportedCountedEnrolment',
+      'ExcessVariance',
+      'MandatedAction',
+    ];
+
+    const rows = breaches.map((b, idx) => [
+      `"NOTC-AICTE-${b.academicYear}-${idx + 1}"`,
+      `"${new Date().toISOString().slice(0, 10)}"`,
+      `"${b.institutionCode}"`,
+      `"${b.institutionName}"`,
+      `"${b.academicYear}"`,
+      `"${b.programmeCode}"`,
+      `"${b.programmeName}"`,
+      `"${b.status === 'REGULAR_EXCESS' ? 'REGULAR_APPROVED_INTAKE_EXCEEDED' : 'SUPERNUMERARY_QUOTA_EXCEEDED'}"`,
+      b.status === 'REGULAR_EXCESS' ? b.approvedRegularIntake : b.tfwLimit,
+      b.status === 'REGULAR_EXCESS' ? b.countedRegular : b.tfwCount,
+      b.status === 'REGULAR_EXCESS' ? b.regularVariance : b.tfwCount - b.tfwLimit,
+      b.status === 'REGULAR_EXCESS'
+        ? '"Institutional reconciliation hearing required; submission of genuine withdrawal records or revised intake approval"'
+        : '"Supernumerary cap adjustment required in institutional portal"',
+    ]);
+
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `AICTE_Non_Compliance_Notices_${selectedAcademicYear}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Aggregate KPI Calculations
+  const totalApprovedRegular = matrixData.reduce((acc, curr) => acc + curr.approvedRegularIntake, 0);
+  const totalCountedRegular = matrixData.reduce((acc, curr) => acc + curr.countedRegular, 0);
+  const totalSupernumerary = matrixData.reduce((acc, curr) => acc + curr.tfwCount + curr.ewsCount + curr.lateralCount, 0);
+  const compliantCount = matrixData.filter((d) => d.status === 'COMPLIANT').length;
+  const complianceRate = matrixData.length > 0 ? Math.round((compliantCount / matrixData.length) * 100) : 100;
+  const totalExcessSeats = matrixData.reduce((acc, curr) => (curr.regularVariance > 0 ? acc + curr.regularVariance : acc), 0);
+  const totalOpenExceptions = matrixData.reduce((acc, curr) => acc + curr.openExceptions, 0);
+
   return (
     <div className="space-y-6">
       {/* Header and Toolbar */}
@@ -190,13 +249,63 @@ export const AicteMonitoringView: React.FC = () => {
           </p>
         </div>
 
-        <button
-          onClick={handleExportCSV}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded text-xs font-medium transition-colors shadow-xs"
-        >
-          <Download className="w-3.5 h-3.5" />
-          Export Intake Report (CSV)
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleExportBreachNotices}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-red-700 hover:bg-red-800 text-white rounded text-xs font-medium transition-colors shadow-xs"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Export Breach Notices (CSV)
+          </button>
+          <button
+            onClick={handleExportCSV}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded text-xs font-medium transition-colors shadow-xs"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Export Intake Report (CSV)
+          </button>
+        </div>
+      </div>
+
+      {/* Executive KPI Summary Ribbon */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-xs">
+          <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wide block">Approved Regular</span>
+          <div className="text-lg font-bold font-mono text-slate-900 mt-0.5">{totalApprovedRegular}</div>
+          <span className="text-[10px] text-slate-500">Statutory EoA cap</span>
+        </div>
+
+        <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-xs">
+          <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wide block">Counted Regular</span>
+          <div className="text-lg font-bold font-mono text-blue-700 mt-0.5">{totalCountedRegular}</div>
+          <span className="text-[10px] text-slate-500">Active non-supernumerary</span>
+        </div>
+
+        <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-xs">
+          <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wide block">Net Regular Excess</span>
+          <div className={`text-lg font-bold font-mono mt-0.5 ${totalExcessSeats > 0 ? 'text-red-700' : 'text-teal-700'}`}>
+            {totalExcessSeats > 0 ? `+${totalExcessSeats} Seats` : '0 (Compliant)'}
+          </div>
+          <span className="text-[10px] text-slate-500">NITD CSE (+8)</span>
+        </div>
+
+        <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-xs">
+          <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wide block">Supernumerary Seats</span>
+          <div className="text-lg font-bold font-mono text-slate-900 mt-0.5">{totalSupernumerary}</div>
+          <span className="text-[10px] text-slate-500">TFW, EWS, Lateral</span>
+        </div>
+
+        <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-xs">
+          <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wide block">Compliance Rate</span>
+          <div className="text-lg font-bold font-mono text-teal-700 mt-0.5">{complianceRate}%</div>
+          <span className="text-[10px] text-slate-500">{compliantCount} of {matrixData.length} programmes</span>
+        </div>
+
+        <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-xs">
+          <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wide block">Programme Exceptions</span>
+          <div className="text-lg font-bold font-mono text-amber-700 mt-0.5">{totalOpenExceptions} Open</div>
+          <span className="text-[10px] text-slate-500">Under TPER review</span>
+        </div>
       </div>
 
       {/* Regulatory Dual Accounting Notice */}

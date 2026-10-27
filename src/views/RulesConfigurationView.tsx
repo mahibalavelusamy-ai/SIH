@@ -29,6 +29,21 @@ export const RulesConfigurationView: React.FC = () => {
   const [editSeverity, setEditSeverity] = useState<'BLOCKING' | 'WARNING' | 'INFO'>('WARNING');
   const [editEnabled, setEditEnabled] = useState<boolean>(true);
   const [revalidationFeedback, setRevalidationFeedback] = useState<string>('');
+  const [selectedCategory, setSelectedCategory] = useState<'ALL' | 'INGESTION' | 'TEMPORAL' | 'QUOTAS'>('ALL');
+
+  const filteredRules = rules.filter((r) => {
+    if (selectedCategory === 'ALL') return true;
+    if (selectedCategory === 'INGESTION') {
+      return ['V-01', 'V-02', 'V-03', 'V-04'].includes(r.ruleId);
+    }
+    if (selectedCategory === 'TEMPORAL') {
+      return ['V-05', 'V-06', 'V-07'].includes(r.ruleId);
+    }
+    if (selectedCategory === 'QUOTAS') {
+      return ['V-08', 'V-09', 'V-10', 'V-11', 'V-12'].includes(r.ruleId);
+    }
+    return true;
+  });
 
   const canConfigure = permissions.canConfigureRules || role === 'SYSTEM_ADMIN';
 
@@ -108,6 +123,37 @@ export const RulesConfigurationView: React.FC = () => {
         </div>
       )}
 
+      {/* Rule Engine Version KPI Ribbon */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-xs">
+          <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wide block">Active Engine Version</span>
+          <div className="text-xl font-bold font-mono text-blue-700 mt-0.5">{ruleVersion}</div>
+          <span className="text-[10px] text-slate-500">Statutory release</span>
+        </div>
+
+        <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-xs">
+          <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wide block">Active Rules</span>
+          <div className="text-xl font-bold font-mono text-slate-900 mt-0.5">
+            {rules.filter((r) => r.enabled).length} / {rules.length}
+          </div>
+          <span className="text-[10px] text-slate-500">V-01 to V-12 configured</span>
+        </div>
+
+        <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-xs">
+          <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wide block">Blocking Rules</span>
+          <div className="text-xl font-bold font-mono text-red-700 mt-0.5">
+            {rules.filter((r) => r.severity === 'BLOCKING' && r.enabled).length}
+          </div>
+          <span className="text-[10px] text-slate-500">Row-rejection severity</span>
+        </div>
+
+        <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-xs">
+          <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wide block">Submissions Bound</span>
+          <div className="text-xl font-bold font-mono text-teal-700 mt-0.5">{submissions.length} Filings</div>
+          <span className="text-[10px] text-slate-500">Version-locked snapshots</span>
+        </div>
+      </div>
+
       {/* Version Invariance Explanation Card */}
       <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-200 text-xs text-slate-700 space-y-1">
         <span className="font-bold text-slate-900 block font-mono">Rule Versioning & Historical Invariance:</span>
@@ -116,9 +162,59 @@ export const RulesConfigurationView: React.FC = () => {
         </p>
       </div>
 
+      {/* Category Filter Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-lg border border-slate-200 shadow-xs text-xs">
+        <div className="flex items-center gap-2">
+          <Sliders className="w-3.5 h-3.5 text-slate-400" />
+          <span className="font-medium text-slate-700">Filter Rules:</span>
+          <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded border border-slate-200 text-[11px]">
+            <button
+              type="button"
+              onClick={() => setSelectedCategory('ALL')}
+              className={`px-2.5 py-0.5 rounded font-medium transition-colors ${
+                selectedCategory === 'ALL' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600'
+              }`}
+            >
+              All (12)
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedCategory('INGESTION')}
+              className={`px-2.5 py-0.5 rounded font-medium transition-colors ${
+                selectedCategory === 'INGESTION' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600'
+              }`}
+            >
+              Ingestion & Format (V01–V04)
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedCategory('TEMPORAL')}
+              className={`px-2.5 py-0.5 rounded font-medium transition-colors ${
+                selectedCategory === 'TEMPORAL' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600'
+              }`}
+            >
+              Temporal & Demographics (V05–V07)
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedCategory('QUOTAS')}
+              className={`px-2.5 py-0.5 rounded font-medium transition-colors ${
+                selectedCategory === 'QUOTAS' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600'
+              }`}
+            >
+              Quotas & Intakes (V08–V12)
+            </button>
+          </div>
+        </div>
+
+        <span className="font-mono text-slate-500 text-[11px]">
+          Showing {filteredRules.length} of {rules.length} Statutory Rules
+        </span>
+      </div>
+
       {/* Rule Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {rules.map((rule) => {
+        {filteredRules.map((rule) => {
           const isBeingEdited = editingRule?.ruleId === rule.ruleId;
 
           return (
