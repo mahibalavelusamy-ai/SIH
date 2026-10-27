@@ -418,7 +418,7 @@ export const ExceptionReviewView: React.FC = () => {
                     rows={2}
                     value={decisionReason}
                     onChange={(e) => setDecisionReason(e.target.value)}
-                    placeholder="Enter formal justification (e.g., Verified transfer certificate #TC-4892 from DTU registrar, or Referred to NITD for cancellation of duplicate entry)..."
+                    placeholder="Enter formal justification (e.g., Verified transfer certificate #TC-4892 from Cedar Technical College registrar, or Referred to Northstar Institute for cancellation of duplicate entry)..."
                     disabled={!canResolve}
                     className="w-full text-xs bg-white border border-slate-300 rounded p-2 focus:ring-1 focus:ring-blue-500 focus:outline-none"
                   />

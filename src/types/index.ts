@@ -139,6 +139,7 @@ export interface Submission {
   flaggedRows: number;
   rejectedRows: number;
   records: StudentEnrolment[];
+  batchChecksum?: string; // SHA-256 content fingerprint for idempotent upload verification
   isResubmission?: boolean;
   originalSubmissionId?: string;
   revalidationCount?: number;
@@ -242,12 +243,34 @@ export interface AuditEvent {
     | 'EXCEPTION_CANDIDATE'
     | 'VERIFICATION_REQUEST'
     | 'ROLE_CHANGE'
+    | 'SECURITY_EVENT'
     | 'DEMO_STATE';
   entityId: string;
   previousState: string | null;
   newState: string | null;
   reasonOrRuleId: string | null;
   reference: string | null;
+  tenantId?: string; // Institution tenant isolation reference
+  prevHash?: string; // SHA-256 hash of previous audit record in tamper-evident chain
+  hash?: string; // SHA-256 block hash of this record
+}
+
+export interface LedgerVerificationResult {
+  isValid: boolean;
+  totalBlocks: number;
+  verifiedBlocks: number;
+  tamperedBlockIndex: number | null;
+  computedHash: string;
+  verifiedAt: string;
+}
+
+export interface SecurityControlItem {
+  id: string;
+  category: 'AUTHENTICATION' | 'AUTHORIZATION' | 'DATA_PRIVACY' | 'CRYPTOGRAPHY' | 'INPUT_VALIDATION' | 'AUDIT_LOGGING' | 'SCALABILITY';
+  name: string;
+  status: 'IMPLEMENTED' | 'SIMULATED' | 'PROPOSED_PRODUCTION_DEPENDENCY';
+  description: string;
+  productionRequirement?: string;
 }
 
 export interface BenchmarkRun {

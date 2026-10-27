@@ -13,10 +13,19 @@ import {
   VerificationOutcome,
   RuleDefinition,
   RowOutcome,
+  LedgerVerificationResult,
 } from '../types';
 import { initializeSeedState } from '../services/seedData';
 import { processSubmissionBatch, DEFAULT_RULES, INITIAL_RULE_VERSION } from '../services/rulesEngine';
 import { runTperReconciliation, maskApaarId } from '../services/tperEngine';
+import {
+  computeAuditEventHash,
+  verifyLedgerIntegrity,
+  validateTenantAccess,
+  computeBatchFingerprint,
+  checkRateLimit,
+  sanitizeAuditMessage,
+} from '../services/securityService';
 
 const STORAGE_KEY = 'idvera_demo_state_v1';
 
@@ -155,6 +164,7 @@ export interface AppContextType {
   resetDemoData: () => void;
   exportDemoSnapshot: () => string;
   importDemoSnapshot: (json: string) => boolean;
+  verifyAuditLedger: () => LedgerVerificationResult;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -251,7 +261,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Current role permissions
   const permissions = ROLE_PERMISSIONS[role];
 
-  // Helper to append audit event
+  // Cryptographically chained, PII-sanitized audit logging
   const addAuditEvent = (
     action: string,
     entityType: AuditEvent['entityType'],
@@ -259,22 +269,41 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     previousState: string | null,
     newState: string | null,
     reasonOrRuleId: string | null,
-    reference: string | null
+    reference: string | null,
+    tenantId?: string
   ) => {
-    const newEvent: AuditEvent = {
-      id: `AUD-${Date.now().toString().slice(-6)}`,
-      timestamp: new Date().toISOString(),
-      actorName: ROLE_DESCRIPTIONS[role].title,
-      actorRole: role,
-      action,
-      entityType,
-      entityId,
-      previousState,
-      newState,
-      reasonOrRuleId,
-      reference,
-    };
-    setAuditEvents((prev) => [newEvent, ...prev]);
+    const sanitizedReason = reasonOrRuleId ? sanitizeAuditMessage(reasonOrRuleId) : null;
+    const sanitizedRef = reference ? sanitizeAuditMessage(reference) : null;
+
+    setAuditEvents((prev) => {
+      const topHash = prev.length > 0 && prev[0].hash
+        ? prev[0].hash
+        : 'GENESIS_BLOCK_0000000000000000000000000000000000000000000000000000000000000000';
+
+      const draftEvent: Omit<AuditEvent, 'hash'> = {
+        id: `AUD-${Date.now().toString().slice(-6)}`,
+        timestamp: new Date().toISOString(),
+        actorName: ROLE_DESCRIPTIONS[role].title,
+        actorRole: role,
+        action,
+        entityType,
+        entityId,
+        previousState,
+        newState,
+        reasonOrRuleId: sanitizedReason,
+        reference: sanitizedRef,
+        tenantId: tenantId || selectedInstitutionId || 'global',
+        prevHash: topHash,
+      };
+
+      const hash = computeAuditEventHash(draftEvent, topHash);
+      const newEvent: AuditEvent = {
+        ...draftEvent,
+        hash,
+      };
+
+      return [newEvent, ...prev];
+    });
   };
 
   // Role Switcher with audit logging
@@ -293,7 +322,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     );
   };
 
-  // Add or resubmit a submission batch
+  // Add or resubmit a submission batch with tenant validation & idempotency checks
   const addSubmission = (
     institutionId: string,
     academicYear: string,
@@ -310,10 +339,54 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         'UNAUTHORIZED_ATTEMPT',
         'DENIED',
         `Role ${role} denied batch submission permission`,
-        'LEAST_PRIVILEGE_ENFORCEMENT'
+        'LEAST_PRIVILEGE_ENFORCEMENT',
+        institutionId
       );
       alert(`Access Denied: Role ${role} does not have permission to submit institutional enrolment batches.`);
       return { submissionId: '', accepted: 0, flagged: 0, rejected: 0 };
+    }
+
+    // Tenant Isolation Enforcement
+    const tenantCheck = validateTenantAccess(role, selectedInstitutionId, institutionId);
+    if (!tenantCheck.allowed) {
+      addAuditEvent(
+        'ACCESS_DENIED',
+        'SUBMISSION',
+        institutionId,
+        'TENANT_VIOLATION',
+        'DENIED',
+        tenantCheck.reason || 'Cross-tenant ingestion blocked',
+        'TENANT_ISOLATION_ENFORCEMENT',
+        institutionId
+      );
+      alert(`Tenant Isolation Violation: ${tenantCheck.reason}`);
+      return { submissionId: '', accepted: 0, flagged: 0, rejected: 0 };
+    }
+
+    // Idempotent Submission Checksum Protection
+    const batchFingerprint = computeBatchFingerprint(institutionId, academicYear, rawRecords);
+    if (!isResubmission) {
+      const existingMatch = submissions.find(
+        (s) => s.institutionId === institutionId && s.academicYear === academicYear && s.batchChecksum === batchFingerprint
+      );
+      if (existingMatch) {
+        addAuditEvent(
+          'IDEMPOTENT_SUBMISSION_REPLAY',
+          'SUBMISSION',
+          existingMatch.id,
+          'IDENTICAL_BATCH_DETECTED',
+          'REPLAYED',
+          `Batch checksum ${batchFingerprint.slice(0, 16)} matches previous submission ${existingMatch.id}. Idempotent replay executed without duplicate intake counting.`,
+          'IDEMPOTENCY_SAFETY',
+          institutionId
+        );
+        return {
+          submissionId: existingMatch.id,
+          accepted: existingMatch.acceptedRows,
+          flagged: existingMatch.flaggedRows,
+          rejected: existingMatch.rejectedRows,
+        };
+      }
     }
 
     // Process raw records through active rules engine
@@ -336,6 +409,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       flaggedRows: summary.flagged,
       rejectedRows: summary.rejected,
       records: processedRecords,
+      batchChecksum: batchFingerprint,
       isResubmission,
       originalSubmissionId: originalSubId,
       revalidationCount: 0,
@@ -366,7 +440,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       isResubmission ? `Supersedes ${originalSubId}` : 'DRAFT',
       newSubmission.status,
       `Rule ${ruleVersion} applied: ${summary.accepted} Accepted, ${summary.flagged} Flagged, ${summary.rejected} Rejected`,
-      `Total: ${processedRecords.length} rows`
+      `Total: ${processedRecords.length} rows | Fingerprint: ${batchFingerprint.slice(0, 16)}`,
+      institutionId
     );
 
     return {
@@ -555,6 +630,34 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         result: 'UNABLE_TO_VERIFY',
         reasonCode: 'ROLE_UNAUTHORIZED',
         reasonDescription: `Current role ${role} does not possess verified student enquiry privileges. Access denied by least-privilege RBAC policy.`,
+      };
+    }
+
+    // Rate Limiter Check (Defense-in-depth against programmatic scraping)
+    const rateCheck = checkRateLimit('verifier-client-session', 20, 0.33);
+    if (!rateCheck.allowed) {
+      addAuditEvent(
+        'RATE_LIMIT_EXCEEDED',
+        'VERIFICATION_REQUEST',
+        maskedVal,
+        'ACTIVE_WINDOW',
+        'THROTTLED',
+        `Query rate limit ceiling exceeded (20 req/min). Retry in ${rateCheck.retryAfterSec}s`,
+        'DEFENSE_IN_DEPTH'
+      );
+      return {
+        id: `VER-LIMIT-${Date.now().toString().slice(-4)}`,
+        timestamp: new Date().toISOString(),
+        searchType,
+        searchValue: cleanSearch,
+        maskedSearchValue: maskedVal,
+        institutionId,
+        academicYear,
+        programmeCode,
+        officerName: ROLE_DESCRIPTIONS[role].title,
+        result: 'UNABLE_TO_VERIFY',
+        reasonCode: 'RATE_LIMIT_EXCEEDED',
+        reasonDescription: `Rate limit ceiling exceeded (20 queries/minute). Automated query throttling enforced. Retry after ${rateCheck.retryAfterSec} seconds.`,
       };
     }
 
@@ -773,6 +876,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         resetDemoData,
         exportDemoSnapshot,
         importDemoSnapshot,
+        verifyAuditLedger: () => verifyLedgerIntegrity(auditEvents),
       }}
     >
       {children}

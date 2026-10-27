@@ -9,6 +9,7 @@ import {
 } from '../types';
 import { processSubmissionBatch, DEFAULT_RULES, INITIAL_RULE_VERSION } from './rulesEngine';
 import { runTperReconciliation } from './tperEngine';
+import { computeAuditEventHash } from './securityService';
 
 const pad = (n: number, w: number): string => n.toString().padStart(w, '0');
 
@@ -694,8 +695,16 @@ export function initializeSeedState() {
       newState: `${duplicateCandidates.length} Candidates Identified`,
       reasonOrRuleId: 'V-05_CROSS_INSTITUTION',
       reference: 'AUTOMATED_TEMPORAL_EVALUATION',
+      tenantId: 'global',
     },
   ];
+
+  let prevGenesisHash = 'GENESIS_BLOCK_0000000000000000000000000000000000000000000000000000000000000000';
+  auditEvents.forEach((ev) => {
+    ev.prevHash = prevGenesisHash;
+    ev.hash = computeAuditEventHash(ev, prevGenesisHash);
+    prevGenesisHash = ev.hash;
+  });
 
   // Seed Verification Requests demonstrating all three outcomes with accurate role and current synthetic timestamps
   const verificationRequests: VerificationRequest[] = [

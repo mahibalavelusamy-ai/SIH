@@ -25,6 +25,16 @@ import {
   deriveKeyedIdentifier,
   runTperReconciliation,
 } from '../services/tperEngine';
+import {
+  verifyLedgerIntegrity,
+  validateTenantAccess,
+  sanitizeCsvCell,
+  sanitizeInputFormula,
+  validateUploadFileConstraints,
+  computeBatchFingerprint,
+  checkRateLimit,
+  sanitizeAuditMessage,
+} from '../services/securityService';
 import { ROLE_PERMISSIONS } from '../context/AppContext';
 import { StudentEnrolment } from '../types';
 import { generateBenchmarkDataset } from '../services/benchmarkData';
@@ -32,7 +42,7 @@ import { generateBenchmarkDataset } from '../services/benchmarkData';
 export interface TestCaseResult {
   id: string;
   name: string;
-  category: 'RULES' | 'TEMPORAL' | 'TPER_MATCH' | 'INTAKE_MATH' | 'SECURITY_ROLES' | 'VERIFIER';
+  category: 'RULES' | 'TEMPORAL' | 'TPER_MATCH' | 'INTAKE_MATH' | 'SECURITY_ROLES' | 'VERIFIER' | 'SECURITY_PRIVACY' | 'SCALABILITY';
   description: string;
   expected: string;
   actual: string;
@@ -813,6 +823,178 @@ export const TestBenchView: React.FC = () => {
       actual: passT24 ? `Rule V-12 triggered for ${v12Findings.length} un-reported approved programmes` : 'Failed to trigger V-12',
       passed: passT24,
       durationMs: Number((performance.now() - t24Start).toFixed(2)),
+    });
+
+    // Test 25: Cryptographic Audit Ledger Hash-Chaining & Tamper Detection
+    const t25Start = performance.now();
+    const ledgerCheck = verifyLedgerIntegrity(auditEvents);
+    // Simulate altered block to ensure detector catches tampering
+    const tamperedAuditEvents = auditEvents.map((ev, i) =>
+      i === 1 ? { ...ev, action: 'UNAUTHORIZED_MUTATION_BREACH' } : ev
+    );
+    const tamperedCheck = verifyLedgerIntegrity(tamperedAuditEvents);
+    const passT25 = ledgerCheck.isValid === true && tamperedCheck.isValid === false && tamperedCheck.tamperedBlockIndex === 1;
+    results.push({
+      id: 'TC-25',
+      name: 'Cryptographic Audit Hash-Chaining & Tamper Detection',
+      category: 'SECURITY_PRIVACY',
+      description: 'Verifies SHA-256 block hash chaining and confirms alteration of an audit record triggers tamper alarm.',
+      expected: 'Original ledger valid=true, tampered ledger valid=false with tamperedBlockIndex identified',
+      actual: `Original valid=${ledgerCheck.isValid}, Tampered valid=${tamperedCheck.isValid} (Caught block #${tamperedCheck.tamperedBlockIndex})`,
+      passed: passT25,
+      durationMs: Number((performance.now() - t25Start).toFixed(2)),
+    });
+
+    // Test 26: CSV Formula Injection (DDE) Neutralization
+    const t26Start = performance.now();
+    const maliciousRaw1 = '=cmd|\'/c calc\'!A1';
+    const maliciousRaw2 = '@SUM(A1:A10)';
+    const sanitizedCell1 = sanitizeCsvCell(maliciousRaw1);
+    const sanitizedInput2 = sanitizeInputFormula(maliciousRaw2);
+    const passT26 = sanitizedCell1.startsWith("'=") && !sanitizedInput2.startsWith('@');
+    results.push({
+      id: 'TC-26',
+      name: 'CSV Formula / DDE Injection Neutralization',
+      category: 'SECURITY_PRIVACY',
+      description: 'Ensures leading formula injection prefixes (=, +, -, @) are sanitized upon upload and CSV export.',
+      expected: 'Formula prefixes neutralized with apostrophe or stripped before ingestion',
+      actual: `Cell: ${sanitizedCell1}, Ingest: ${sanitizedInput2}`,
+      passed: passT26,
+      durationMs: Number((performance.now() - t26Start).toFixed(2)),
+    });
+
+    // Test 27: Multi-Tenant Institutional Isolation Enforcement
+    const t27Start = performance.now();
+    const subTenantValid = validateTenantAccess('INSTITUTION_SUBMITTER', 'INST-001', 'INST-001');
+    const subTenantCross = validateTenantAccess('INSTITUTION_SUBMITTER', 'INST-001', 'INST-002');
+    const adminTenantBlock = validateTenantAccess('SYSTEM_ADMIN', null, 'INST-001');
+    const aicteTenantCross = validateTenantAccess('AICTE_REVIEWER', null, 'INST-002');
+    const passT27 = subTenantValid.allowed && !subTenantCross.allowed && !adminTenantBlock.allowed && aicteTenantCross.allowed;
+    results.push({
+      id: 'TC-27',
+      name: 'Multi-Tenant Institutional Isolation & Least-Privilege Gate',
+      category: 'SECURITY_PRIVACY',
+      description: 'Enforces that Submitter cannot ingest/mutate cross-tenant records, and System Admin is denied student tenant access.',
+      expected: 'Own-tenant=allowed, Cross-tenant=denied, Admin-tenant=denied, AICTE=allowed',
+      actual: `Own=${subTenantValid.allowed}, Cross=${subTenantCross.allowed}, Admin=${adminTenantBlock.allowed}, AICTE=${aicteTenantCross.allowed}`,
+      passed: passT27,
+      durationMs: Number((performance.now() - t27Start).toFixed(2)),
+    });
+
+    // Test 28: Submission Idempotency & Batch Checksum Collision Protection
+    const t28Start = performance.now();
+    const sampleBatchA = [
+      { studentReference: 'REF-01', dateOfBirth: '2005-01-01', programmeCode: 'BTECH-CSE' },
+      { studentReference: 'REF-02', dateOfBirth: '2005-02-02', programmeCode: 'BTECH-ECE' },
+    ];
+    const sampleBatchB = [
+      { studentReference: 'REF-02', dateOfBirth: '2005-02-02', programmeCode: 'BTECH-ECE' },
+      { studentReference: 'REF-01', dateOfBirth: '2005-01-01', programmeCode: 'BTECH-CSE' },
+    ];
+    const hashA = computeBatchFingerprint('INST-001', '2026-27', sampleBatchA);
+    const hashB = computeBatchFingerprint('INST-001', '2026-27', sampleBatchB);
+    const passT28 = hashA === hashB && hashA.length === 64;
+    results.push({
+      id: 'TC-28',
+      name: 'Submission Idempotency & Order-Independent Batch Checksum',
+      category: 'SCALABILITY',
+      description: 'Validates deterministic content fingerprinting to ensure retried or out-of-order batches are handled idempotently.',
+      expected: 'Identical 64-char fingerprint for identical content regardless of row upload order',
+      actual: `Hash A: ${hashA.slice(0, 12)}... === Hash B: ${hashB.slice(0, 12)}...`,
+      passed: passT28,
+      durationMs: Number((performance.now() - t28Start).toFixed(2)),
+    });
+
+    // Test 29: Verification Centre Token Bucket Rate Limiting (Scraping Defense)
+    const t29Start = performance.now();
+    const testKey = `test-rate-limit-${Date.now()}`;
+    let allowedCount = 0;
+    let rejectedCount = 0;
+    for (let i = 0; i < 25; i++) {
+      const res = checkRateLimit(testKey, 10, 0.1);
+      if (res.allowed) allowedCount++;
+      else rejectedCount++;
+    }
+    const passT29 = allowedCount === 10 && rejectedCount === 15;
+    results.push({
+      id: 'TC-29',
+      name: 'Verification Centre Token Bucket Rate Limiting',
+      category: 'SECURITY_PRIVACY',
+      description: 'Enforces token bucket ceiling on verifier endpoint to protect against programmatic student roster enumeration.',
+      expected: 'First 10 queries allowed; subsequent 15 queries throttled with retry duration',
+      actual: `Allowed: ${allowedCount}, Throttled: ${rejectedCount}`,
+      passed: passT29,
+      durationMs: Number((performance.now() - t29Start).toFixed(2)),
+    });
+
+    // Test 30: Upload Boundary & Ingestion File Limit Defense
+    const t30Start = performance.now();
+    const oversizedFileCheck = validateUploadFileConstraints(15 * 1024 * 1024, 100, ['studentReference', 'studentName', 'dateOfBirth', 'programmeCode', 'seatCategory', 'admissionDate']);
+    const oversizedRowCheck = validateUploadFileConstraints(5000, 30000, ['studentReference', 'studentName', 'dateOfBirth', 'programmeCode', 'seatCategory', 'admissionDate']);
+    const missingColCheck = validateUploadFileConstraints(5000, 100, ['studentReference', 'dateOfBirth']);
+    const validFileCheck = validateUploadFileConstraints(2 * 1024 * 1024, 500, ['studentReference', 'studentName', 'dateOfBirth', 'programmeCode', 'seatCategory', 'admissionDate']);
+    const passT30 = !oversizedFileCheck.valid && !oversizedRowCheck.valid && !missingColCheck.valid && validFileCheck.valid;
+    results.push({
+      id: 'TC-30',
+      name: 'Ingestion Boundary & Mandatory Header Schema Enforcement',
+      category: 'SECURITY_PRIVACY',
+      description: 'Rejects uploads exceeding 10MB or 25,000 rows, and catches missing mandatory regulatory columns.',
+      expected: 'Oversized size/rows and malformed headers rejected; compliant batch approved',
+      actual: `SizeCheck=${!oversizedFileCheck.valid}, RowCheck=${!oversizedRowCheck.valid}, HeaderCheck=${!missingColCheck.valid}, ValidPass=${validFileCheck.valid}`,
+      passed: passT30,
+      durationMs: Number((performance.now() - t30Start).toFixed(2)),
+    });
+
+    // Test 31: Zero-Plaintext Audit PII Redaction
+    const t31Start = performance.now();
+    const rawLeak = 'Admitted student with APAAR 910283741001 and roll 2026-NST-01';
+    const sanitized = sanitizeAuditMessage(rawLeak);
+    const passT31 = !sanitized.includes('910283741001') && sanitized.includes('9102-****-1001');
+    results.push({
+      id: 'TC-31',
+      name: 'Zero-Plaintext Audit PII Redaction (APAAR Masking)',
+      category: 'SECURITY_PRIVACY',
+      description: 'Ensures raw 12-digit numeric APAAR IDs are masked before recording in audit logs.',
+      expected: 'Contiguous 12-digit APAAR masked to 9102-****-1001',
+      actual: `Sanitized: "${sanitized}"`,
+      passed: passT31,
+      durationMs: Number((performance.now() - t31Start).toFixed(2)),
+    });
+
+    // Test 32: Concurrent Batch Load & Response-Time Percentiles
+    const t32Start = performance.now();
+    const latencies: number[] = [];
+    const testChunkSizes = [100, 250, 500, 750, 1000];
+    let totalSimulatedRows = 0;
+    testChunkSizes.forEach((sz) => {
+      const chunkStart = performance.now();
+      const mockBatch: StudentEnrolment[] = Array.from({ length: sz }, (_, idx) => ({
+        ...recV01,
+        id: `load-${sz}-${idx}`,
+        studentReference: `2026-LOAD-${sz}-${idx}`,
+        studentName: `Benchmark Student ${idx}`,
+        apaarId: `99008800${idx.toString().padStart(4, '0')}`,
+      }));
+      processSubmissionBatch(mockBatch, DEFAULT_RULES, intakeLimits);
+      latencies.push(performance.now() - chunkStart);
+      totalSimulatedRows += sz;
+    });
+    latencies.sort((a, b) => a - b);
+    const p50 = latencies[Math.floor(latencies.length * 0.5)];
+    const p95 = latencies[Math.floor(latencies.length * 0.95)];
+    const p99 = latencies[latencies.length - 1];
+    const totalLoadMs = latencies.reduce((a, b) => a + b, 0);
+    const throughput = Math.round(totalSimulatedRows / (totalLoadMs / 1000));
+    const passT32 = throughput > 1000 && p95 < 200;
+    results.push({
+      id: 'TC-32',
+      name: 'Concurrent Batch Ingestion Throughput & Response Percentiles',
+      category: 'SCALABILITY',
+      description: 'Measures live multi-batch processing throughput and latency percentiles (p50, p95, p99).',
+      expected: 'Throughput > 1,000 rows/sec, p95 latency < 200ms',
+      actual: `Throughput: ${throughput.toLocaleString()} rows/s | p50: ${p50.toFixed(1)}ms, p95: ${p95.toFixed(1)}ms, p99: ${p99.toFixed(1)}ms`,
+      passed: passT32,
+      durationMs: Number((performance.now() - t32Start).toFixed(2)),
     });
 
     const totalDuration = performance.now() - startTime;

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { IDVERA_SECURITY_CONTROLS } from '../services/securityService';
 import {
   Layers,
   Shield,
@@ -18,6 +19,10 @@ import {
   Code2,
   Eye,
   RefreshCw,
+  GitBranch,
+  Network,
+  Activity,
+  HardDrive,
 } from 'lucide-react';
 
 interface ComponentDetail {
@@ -549,6 +554,154 @@ export const ArchitectureView: React.FC = () => {
             <span>Component ID: {activeDetail.id}</span>
             <span>SIH 2026 Prototype</span>
           </div>
+        </div>
+      </div>
+
+      {/* NATIONAL-SCALE PRODUCTION ARCHITECTURE SPECIFICATIONS */}
+      <div className="bg-white rounded-lg border border-slate-200 shadow-xs p-6 space-y-6">
+        <div className="border-b border-slate-200 pb-3 flex flex-col md:flex-row md:items-center justify-between gap-2">
+          <div>
+            <h2 className="text-base font-bold text-slate-900 tracking-tight flex items-center gap-2">
+              <Server className="w-4 h-4 text-slate-700" />
+              National-Scale Production Architecture & Engineering Specifications
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Production requirements distinguishing current prototype capabilities from national infrastructure dependencies (MoE, AICTE, and MeitY).
+            </p>
+          </div>
+          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-50 text-blue-800 font-bold border border-blue-200">
+            Target Scale: 10M+ Annual Records
+          </span>
+        </div>
+
+        {/* 4 Core Infrastructure Pillars */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 space-y-2">
+            <div className="flex items-center gap-2 text-slate-900 font-bold text-xs">
+              <Network className="w-4 h-4 text-blue-600" />
+              <span>Queue Workers & Async Ingestion</span>
+            </div>
+            <p className="text-[11px] text-slate-600 leading-relaxed">
+              Decoupled API gateway accepts CSV uploads asynchronously (HTTP 202 Accepted). Distributed background workers (Redis + BullMQ / Celery) process 5,000-row micro-chunks with auto-scaling worker nodes.
+            </p>
+            <div className="text-[10px] font-mono text-slate-500 pt-1 border-t border-slate-200">
+              Throughput Target: 25,000 rows/sec
+            </div>
+          </div>
+
+          <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 space-y-2">
+            <div className="flex items-center gap-2 text-slate-900 font-bold text-xs">
+              <Database className="w-4 h-4 text-emerald-600" />
+              <span>Database & Connection Pooling</span>
+            </div>
+            <p className="text-[11px] text-slate-600 leading-relaxed">
+              PostgreSQL 16 Enterprise with PgBouncer connection pooler (Transaction pooling). Multi-tenant Row-Level Security (RLS) policies scoped by <code>tenant_id</code>. Partitioned tables by academic year.
+            </p>
+            <div className="text-[10px] font-mono text-slate-500 pt-1 border-t border-slate-200">
+              Indices: B-tree, GIN Trigram, HMAC Hash
+            </div>
+          </div>
+
+          <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 space-y-2">
+            <div className="flex items-center gap-2 text-slate-900 font-bold text-xs">
+              <Key className="w-4 h-4 text-amber-600" />
+              <span>Hardware Security Modules (HSM)</span>
+            </div>
+            <p className="text-[11px] text-slate-600 leading-relaxed">
+              FIPS 140-3 Level 3 CloudHSM / AWS KMS for zero-plaintext key derivation. HMAC pepper keys rotated on a 90-day cryptographic cycle. Salt isolated per academic year to prevent cross-year correlation.
+            </p>
+            <div className="text-[10px] font-mono text-slate-500 pt-1 border-t border-slate-200">
+              Zero Plaintext APAAR In Storage
+            </div>
+          </div>
+
+          <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 space-y-2">
+            <div className="flex items-center gap-2 text-slate-900 font-bold text-xs">
+              <HardDrive className="w-4 h-4 text-purple-600" />
+              <span>High Availability & Disaster Recovery</span>
+            </div>
+            <p className="text-[11px] text-slate-600 leading-relaxed">
+              Multi-AZ deployment across 3 availability zones with active-active failover. Continuous WAL streaming to encrypted object storage. Daily immutable snapshots retained for 7 years under statutory compliance.
+            </p>
+            <div className="text-[10px] font-mono text-slate-500 pt-1 border-t border-slate-200">
+              RPO: &lt; 1 min | RTO: &lt; 15 mins
+            </div>
+          </div>
+        </div>
+
+        {/* Security Controls Status Matrix */}
+        <div className="space-y-3 pt-2">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider font-mono flex items-center gap-2">
+              <Shield className="w-3.5 h-3.5 text-slate-700" />
+              Security & Privacy Controls Inventory ({IDVERA_SECURITY_CONTROLS.length} Controls Evaluated)
+            </h3>
+            <span className="text-[11px] text-slate-500 font-mono">
+              {IDVERA_SECURITY_CONTROLS.filter((c) => c.status === 'IMPLEMENTED').length} Implemented in Core Prototype
+            </span>
+          </div>
+
+          <div className="overflow-x-auto border border-slate-200 rounded-lg">
+            <table className="w-full text-left text-xs divide-y divide-slate-200">
+              <thead className="bg-slate-50 text-slate-600 font-mono text-[10px] uppercase">
+                <tr>
+                  <th className="py-2.5 px-3">Control ID</th>
+                  <th className="py-2.5 px-3">Category</th>
+                  <th className="py-2.5 px-3">Security Control Name</th>
+                  <th className="py-2.5 px-3">Current Status</th>
+                  <th className="py-2.5 px-3">Current Prototype Implementation</th>
+                  <th className="py-2.5 px-3">Production Dependency</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-[11px]">
+                {IDVERA_SECURITY_CONTROLS.map((ctrl) => (
+                  <tr key={ctrl.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="py-2 px-3 font-mono font-bold text-slate-900">{ctrl.id}</td>
+                    <td className="py-2 px-3 font-mono text-[10px] text-slate-500">{ctrl.category}</td>
+                    <td className="py-2 px-3 font-semibold text-slate-800">{ctrl.name}</td>
+                    <td className="py-2 px-3 whitespace-nowrap">
+                      <span
+                        className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded border ${
+                          ctrl.status === 'IMPLEMENTED'
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                            : ctrl.status === 'SIMULATED'
+                            ? 'bg-amber-50 text-amber-800 border-amber-200'
+                            : 'bg-blue-50 text-blue-800 border-blue-200'
+                        }`}
+                      >
+                        {ctrl.status === 'IMPLEMENTED'
+                          ? '✓ IMPLEMENTED'
+                          : ctrl.status === 'SIMULATED'
+                          ? 'SIMULATED'
+                          : 'PRODUCTION DEP'}
+                      </span>
+                    </td>
+                    <td className="py-2 px-3 text-slate-600 text-[10px]">{ctrl.description}</td>
+                    <td className="py-2 px-3 text-slate-500 text-[10px] font-mono">{ctrl.productionRequirement}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Honest Disclosure of Remaining Vulnerabilities & Gaps */}
+        <div className="p-4 bg-amber-50/70 rounded-lg border border-amber-200 text-xs text-amber-900 space-y-1.5">
+          <div className="flex items-center gap-2 font-bold text-amber-950">
+            <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0" />
+            <span>Honest Disclosure of Prototype Security Boundaries & Remaining Vulnerabilities:</span>
+          </div>
+          <ul className="list-disc list-inside space-y-1 text-amber-900/90 pl-1 text-[11px] leading-relaxed">
+            <li>
+              <strong>Browser Storage Boundary:</strong> While least-privilege action gates and SHA-256 hash chaining prevent accidental or UI-based tampering, client-side browser memory and <code>localStorage</code> remain accessible to DevTools inspection. True tamper-resistance requires server-side WORM databases.
+            </li>
+            <li>
+              <strong>Offline Mock Verifier:</strong> The current APAAR Verification Centre operates against certified in-memory institutional submissions; no real government APAAR/DigiLocker network connection exists in this prototype.
+            </li>
+            <li>
+              <strong>Client-Side Rate Limiting:</strong> Verification throttling operates via in-memory token buckets per browser session. Production requires distributed Redis sliding-window limiters to defend against multi-IP scraping.
+            </li>
+          </ul>
         </div>
       </div>
     </div>

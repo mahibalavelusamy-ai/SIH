@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { StudentEnrolment, RowOutcome, Submission, ValidationFinding } from '../types';
 import { processSubmissionBatch, DEFAULT_RULES } from '../services/rulesEngine';
 import { maskApaarId } from '../services/tperEngine';
+import { validateUploadFileConstraints, sanitizeInputFormula, sanitizeCsvCell } from '../services/securityService';
 import {
   UploadCloud,
   FileSpreadsheet,
@@ -27,7 +28,7 @@ import {
 } from 'lucide-react';
 
 const CANONICAL_FIELDS = [
-  { key: 'studentReference', label: 'Student Reference ID', required: true, example: '2026-NITD-CS-001' },
+  { key: 'studentReference', label: 'Student Reference ID', required: true, example: '2026-NST-CS-001' },
   { key: 'studentName', label: 'Full Student Name', required: true, example: 'Aarav Sharma' },
   { key: 'dateOfBirth', label: 'Date of Birth (YYYY-MM-DD)', required: true, example: '2005-04-12' },
   { key: 'apaarId', label: 'APAAR ID (12 Numeric Digits)', required: false, example: '910283741001' },
@@ -156,7 +157,7 @@ export const SubmissionCentreView: React.FC = () => {
   const handleDownloadTemplate = () => {
     const headers = CANONICAL_FIELDS.map((f) => f.key);
     const sampleRow1 = [
-      '2026-NITD-CS-001',
+      '2026-NST-CS-001',
       'Aarav Sharma',
       '2005-04-12',
       '910283741001',
@@ -171,7 +172,7 @@ export const SubmissionCentreView: React.FC = () => {
       '',
     ];
     const sampleRow2 = [
-      '2026-NITD-TFW-01',
+      '2026-NST-TFW-01',
       'Ishaan Verma',
       '2005-03-20',
       '910283742001',
@@ -206,7 +207,7 @@ export const SubmissionCentreView: React.FC = () => {
     if (presetType === 'MIXED_QUALITY') {
       rows = [
         {
-          studentReference: '2026-NITD-CS-501',
+          studentReference: '2026-NST-CS-501',
           studentName: 'Vikramaditya Rao',
           dateOfBirth: '2005-02-14',
           apaarId: '910283745001',
@@ -221,7 +222,7 @@ export const SubmissionCentreView: React.FC = () => {
           transferEffectiveDate: '',
         },
         {
-          studentReference: '2026-NITD-CS-502',
+          studentReference: '2026-NST-CS-502',
           studentName: 'Divya Nambiar',
           dateOfBirth: '2005-08-19',
           apaarId: '', // V-02 Missing APAAR
@@ -236,7 +237,7 @@ export const SubmissionCentreView: React.FC = () => {
           transferEffectiveDate: '',
         },
         {
-          studentReference: '2026-NITD-CS-503',
+          studentReference: '2026-NST-CS-503',
           studentName: 'Saurabh Sen',
           dateOfBirth: '2005-06-11',
           apaarId: 'APAAR-BAD-99', // V-03 APAAR format mismatch
@@ -251,7 +252,7 @@ export const SubmissionCentreView: React.FC = () => {
           transferEffectiveDate: '',
         },
         {
-          studentReference: '2026-NITD-CS-504',
+          studentReference: '2026-NST-CS-504',
           studentName: '', // V-01 Missing mandatory name -> REJECTED
           dateOfBirth: '2005-05-05',
           apaarId: '910283745004',
@@ -266,7 +267,7 @@ export const SubmissionCentreView: React.FC = () => {
           transferEffectiveDate: '',
         },
         {
-          studentReference: '2026-NITD-CS-505',
+          studentReference: '2026-NST-CS-505',
           studentName: 'Ritika Roy',
           dateOfBirth: '2022-01-01', // V-06 Age violation -> REJECTED
           apaarId: '910283745005',
@@ -281,7 +282,7 @@ export const SubmissionCentreView: React.FC = () => {
           transferEffectiveDate: '',
         },
         {
-          studentReference: '2026-NITD-CS-506',
+          studentReference: '2026-NST-CS-506',
           studentName: 'Kunal Deshmukh',
           dateOfBirth: '2005-03-10',
           apaarId: '910283745006',
@@ -300,7 +301,7 @@ export const SubmissionCentreView: React.FC = () => {
     } else {
       rows = [
         {
-          studentReference: '2026-NITD-EC-601',
+          studentReference: '2026-NST-EC-601',
           studentName: 'Ananya Deshmukh',
           dateOfBirth: '2005-01-19',
           apaarId: '910283746001',
@@ -315,7 +316,7 @@ export const SubmissionCentreView: React.FC = () => {
           transferEffectiveDate: '',
         },
         {
-          studentReference: '2026-NITD-EC-602',
+          studentReference: '2026-NST-EC-602',
           studentName: 'Pranav Iyer',
           dateOfBirth: '2005-07-22',
           apaarId: '910283746002',
@@ -371,6 +372,13 @@ export const SubmissionCentreView: React.FC = () => {
         return;
       }
 
+      // Security Constraint Checks (File size & row limits)
+      const constraintCheck = validateUploadFileConstraints(file.size, rows.length, headers);
+      if (!constraintCheck.valid) {
+        alert(`CSV Ingestion Security Warning:\n• ${constraintCheck.errors.join('\n• ')}`);
+        return;
+      }
+
       setDetectedHeaders(headers);
       setRawParsedRows(rows);
 
@@ -413,11 +421,12 @@ export const SubmissionCentreView: React.FC = () => {
       return;
     }
 
-    // Convert raw rows to StudentEnrolment
+    // Convert raw rows to StudentEnrolment with formula injection neutralization
     const records: StudentEnrolment[] = rawParsedRows.map((raw, idx) => {
       const getVal = (canonicalKey: string): string => {
         const header = columnMapping[canonicalKey];
-        return header && raw[header] !== undefined ? raw[header].trim() : '';
+        const rawVal = header && raw[header] !== undefined ? raw[header].trim() : '';
+        return sanitizeInputFormula(rawVal);
       };
 
       const superFlagVal = getVal('supernumeraryFlag').toUpperCase();

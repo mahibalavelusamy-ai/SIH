@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { AuditEvent } from '../types';
+import { AuditEvent, LedgerVerificationResult } from '../types';
+import { sanitizeCsvCell } from '../services/securityService';
 import {
   History,
   Download,
@@ -10,15 +11,29 @@ import {
   Clock,
   UserCheck,
   ShieldCheck,
+  CheckCircle2,
+  AlertTriangle,
+  RefreshCw,
   X,
 } from 'lucide-react';
 
 export const AuditTrailView: React.FC = () => {
-  const { auditEvents } = useApp();
+  const { auditEvents, verifyAuditLedger } = useApp();
 
   const [filterAction, setFilterAction] = useState<string>('ALL');
   const [filterEntityType, setFilterEntityType] = useState<string>('ALL');
   const [selectedEvent, setSelectedEvent] = useState<AuditEvent | null>(null);
+  const [verificationResult, setVerificationResult] = useState<LedgerVerificationResult>(() => verifyAuditLedger());
+  const [isVerifying, setIsVerifying] = useState(false);
+
+  const handleVerifyLedger = () => {
+    setIsVerifying(true);
+    setTimeout(() => {
+      const res = verifyAuditLedger();
+      setVerificationResult(res);
+      setIsVerifying(false);
+    }, 250);
+  };
 
   const filteredEvents = auditEvents.filter((ev) => {
     const matchAction = filterAction === 'ALL' || ev.action.includes(filterAction);
@@ -39,20 +54,24 @@ export const AuditTrailView: React.FC = () => {
       'NewState',
       'ReasonOrRuleID',
       'Reference',
+      'BlockHash',
+      'PreviousBlockHash',
     ];
 
     const rows = filteredEvents.map((ev) => [
-      `"${ev.id}"`,
-      `"${ev.timestamp}"`,
-      `"${ev.actorName}"`,
-      `"${ev.actorRole}"`,
-      `"${ev.action}"`,
-      `"${ev.entityType}"`,
-      `"${ev.entityId}"`,
-      `"${ev.previousState || '—'}"`,
-      `"${ev.newState || '—'}"`,
-      `"${(ev.reasonOrRuleId || '—').replace(/"/g, '""')}"`,
-      `"${(ev.reference || '—').replace(/"/g, '""')}"`,
+      `"${sanitizeCsvCell(ev.id)}"`,
+      `"${sanitizeCsvCell(ev.timestamp)}"`,
+      `"${sanitizeCsvCell(ev.actorName)}"`,
+      `"${sanitizeCsvCell(ev.actorRole)}"`,
+      `"${sanitizeCsvCell(ev.action)}"`,
+      `"${sanitizeCsvCell(ev.entityType)}"`,
+      `"${sanitizeCsvCell(ev.entityId)}"`,
+      `"${sanitizeCsvCell(ev.previousState || '—')}"`,
+      `"${sanitizeCsvCell(ev.newState || '—')}"`,
+      `"${sanitizeCsvCell(ev.reasonOrRuleId || '—')}"`,
+      `"${sanitizeCsvCell(ev.reference || '—')}"`,
+      `"${sanitizeCsvCell(ev.hash || '—')}"`,
+      `"${sanitizeCsvCell(ev.prevHash || '—')}"`,
     ]);
 
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
@@ -72,29 +91,63 @@ export const AuditTrailView: React.FC = () => {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold text-slate-900 tracking-tight">Immutable Audit Journal</h1>
-            <span className="text-xs font-mono px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-semibold border border-slate-200">
-              Append-Only State
+            <span className="text-xs font-mono px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 font-semibold border border-emerald-200">
+              SHA-256 Hash Chained
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            Chronological ledger recording batch uploads, rule engine version changes, human exception adjudications, and verification queries.
+            Tamper-evident chronological ledger recording batch submissions, rule engine mutations, human exception adjudications, and verification queries.
           </p>
         </div>
 
-        <button
-          onClick={handleExportCSV}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded text-xs font-medium transition-colors shadow-xs"
-        >
-          <Download className="w-3.5 h-3.5" />
-          Export Audit Log (CSV)
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleVerifyLedger}
+            disabled={isVerifying}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded text-xs font-medium transition-colors shadow-2xs"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${isVerifying ? 'animate-spin' : ''}`} />
+            {isVerifying ? 'Verifying...' : 'Verify Cryptographic Integrity'}
+          </button>
+          <button
+            onClick={handleExportCSV}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded text-xs font-medium transition-colors shadow-2xs"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Safe Export (CSV)
+          </button>
+        </div>
       </div>
 
-      {/* Regulatory Governance & Browser Limitation Disclaimer */}
-      <div className="p-3.5 bg-slate-100 rounded-lg border border-slate-200 text-xs text-slate-700 flex items-start gap-3">
-        <Lock className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
-        <div className="leading-relaxed">
-          <strong className="text-slate-900">Compliance & Prototype Limitation Notice:</strong> Audit entries in this frontend prototype are stored in browser memory/localStorage and are protected against deletion via normal UI controls. However, client-side browser storage is not tamper-proof against code inspection. Production deployments require WORM (Write Once Read Many) append-only database storage with cryptographic digital signatures.
+      {/* Cryptographic Ledger Verification Status Card */}
+      <div className={`p-4 rounded-xl border transition-all ${verificationResult.isValid ? 'bg-emerald-50/60 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            {verificationResult.isValid ? (
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 mt-0.5 shrink-0" />
+            ) : (
+              <AlertTriangle className="w-5 h-5 text-rose-600 mt-0.5 shrink-0" />
+            )}
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-900">
+                  {verificationResult.isValid ? 'Cryptographic Hash-Chain Integrity: Valid' : 'Ledger Tampering Detected'}
+                </span>
+                <span className="text-[11px] font-mono px-2 py-0.2 rounded bg-white text-slate-700 font-semibold border border-slate-200">
+                  {verificationResult.verifiedBlocks} / {verificationResult.totalBlocks} Blocks Verified
+                </span>
+              </div>
+              <p className="text-xs text-slate-600 mt-0.5">
+                Every audit record is cryptographically linked to its predecessor via SHA-256 block hashing (<code>prevHash + eventData</code>). CSV exports strictly sanitize formula injection vectors (<code>=, +, -, @</code>).
+              </p>
+            </div>
+          </div>
+          <div className="text-right shrink-0">
+            <div className="text-[10px] font-mono text-slate-500">Latest Top Block Hash:</div>
+            <div className="text-[11px] font-mono font-semibold text-slate-800 bg-white px-2 py-0.5 rounded border border-slate-200 max-w-[200px] truncate" title={verificationResult.computedHash}>
+              {verificationResult.computedHash.slice(0, 18)}...
+            </div>
+          </div>
         </div>
       </div>
 

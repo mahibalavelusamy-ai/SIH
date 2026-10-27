@@ -146,7 +146,7 @@ export const VerificationCentreView: React.FC = () => {
                 type="text"
                 value={searchValue}
                 onChange={(e) => setSearchValue(e.target.value)}
-                placeholder={searchType === 'STUDENT_REF' ? 'e.g. 2026-NITD-CS-001' : 'e.g. 910283741001'}
+                placeholder={searchType === 'STUDENT_REF' ? 'e.g. 2026-NST-CS-001' : 'e.g. 910283741001'}
                 className="w-full text-xs bg-slate-50 border border-slate-300 rounded px-3 py-2 font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </div>
