@@ -1,0 +1,6 @@
+{
+  "name": "IDVERA - Institutional Enrolment Reconciliation & Verification",
+  "description": "Transfer-Aware, Privacy-Preserving Enrolment Reconciliation (TPER) platform for AICTE-approved institutions.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

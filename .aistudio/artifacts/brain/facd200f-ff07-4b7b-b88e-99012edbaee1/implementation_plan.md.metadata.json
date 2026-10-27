@@ -1,0 +1,6 @@
+{
+  "summary":  "Comprehensive architectural and implementation plan for IDVERA, a Transfer-Aware, Privacy-Preserving Enrolment Reconciliation (TPER) web platform for AICTE-approved institutions. Outlines the 12 navigation areas, versioned rule engine (V-01 to V-12), privacy-preserving temporal duplicate matching stages A-E, dual-engine reconciliation, verification adapter, test bench, benchmark suite, and role-based permissions.",
+  "updatedAt":  "2026-10-27T05:44:44.601536541Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}
