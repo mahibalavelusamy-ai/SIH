@@ -172,7 +172,7 @@ export const ExceptionReviewView: React.FC = () => {
                 No exceptions in the queue matching criteria.
               </div>
             ) : (
-              filteredCandidates.map((c) => {
+              filteredCandidates.map((c, idx) => {
                 const isSelected = activeCandidate?.id === c.id;
                 const isPending = c.status === 'PENDING_REVIEW';
                 const iA = institutions.find((i) => i.id === c.recordA.institutionId);
@@ -180,7 +180,7 @@ export const ExceptionReviewView: React.FC = () => {
 
                 return (
                   <div
-                    key={c.id}
+                    key={`${c.id}-${idx}`}
                     onClick={() => setSelectedCandidateId(c.id)}
                     className={`p-3 cursor-pointer transition-colors ${
                       isSelected

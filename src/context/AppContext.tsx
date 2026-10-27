@@ -204,7 +204,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (parsed.records && parsed.submissions) {
           setRecords(parsed.records);
           setSubmissions(parsed.submissions);
-          setDuplicateCandidates(parsed.duplicateCandidates || []);
+
+          const rawCandidates: DuplicateCandidate[] = parsed.duplicateCandidates || [];
+          const sanitizedCandidates: DuplicateCandidate[] = [];
+          const seenIds = new Set<string>();
+          rawCandidates.forEach((c) => {
+            let uniqueId = c.id;
+            let counter = 2;
+            while (seenIds.has(uniqueId)) {
+              uniqueId = `${c.id}-${counter++}`;
+            }
+            seenIds.add(uniqueId);
+            sanitizedCandidates.push({ ...c, id: uniqueId });
+          });
+
+          setDuplicateCandidates(sanitizedCandidates);
           setAuditEvents(parsed.auditEvents || []);
           setVerificationRequests(parsed.verificationRequests || []);
           setRules(parsed.rules || DEFAULT_RULES);

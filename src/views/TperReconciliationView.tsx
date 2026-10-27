@@ -161,7 +161,7 @@ export const TperReconciliationView: React.FC = () => {
                 No duplicate candidates match the selected filters.
               </div>
             ) : (
-              filteredCandidates.map((candidate) => {
+              filteredCandidates.map((candidate, idx) => {
                 const isSelected = selectedCandidate?.id === candidate.id;
                 const isPending = candidate.status === 'PENDING_REVIEW';
                 const instA = institutions.find((i) => i.id === candidate.recordA.institutionId);
@@ -169,7 +169,7 @@ export const TperReconciliationView: React.FC = () => {
 
                 return (
                   <div
-                    key={candidate.id}
+                    key={`${candidate.id}-${idx}`}
                     onClick={() => setSelectedCandidate(candidate)}
                     className={`p-3.5 cursor-pointer transition-colors flex items-center justify-between gap-4 ${
                       isSelected ? 'bg-blue-50/60 border-l-4 border-l-blue-600' : 'hover:bg-slate-50'

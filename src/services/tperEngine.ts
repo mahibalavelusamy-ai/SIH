@@ -236,6 +236,19 @@ export function runTperReconciliation(
   });
 
   const candidates: DuplicateCandidate[] = [];
+  const seenPairKeys = new Set<string>();
+  const seenCandidateIds = new Set<string>();
+
+  const getUniqueCandidateId = (preferredId: string): string => {
+    let candidateId = preferredId;
+    let counter = 2;
+    while (seenCandidateIds.has(candidateId)) {
+      candidateId = `${preferredId}-${counter}`;
+      counter++;
+    }
+    seenCandidateIds.add(candidateId);
+    return candidateId;
+  };
 
   // Exclude rejected records from reconciliation pool
   const eligibleRecords = allRecords.filter((r) => r.rowOutcome !== 'REJECTED');
@@ -250,7 +263,14 @@ export function runTperReconciliation(
       if (recA.id === recB.id) continue;
 
       const pairKey = [recA.id, recB.id].sort().join(':::');
+      if (seenPairKeys.has(pairKey)) continue;
+      seenPairKeys.add(pairKey);
+
       const existing = existingMap.get(pairKey);
+
+      const [sortedIdA, sortedIdB] = [recA.id, recB.id].sort();
+      const slugA = sortedIdA.replace(/^rec-/, '');
+      const slugB = sortedIdB.replace(/^rec-/, '');
 
       // Check if both have a valid 12-digit APAAR ID (Stage A Keyed Matching)
       const aHasValidApaar = recA.apaarId && /^\d{12}$/.test(recA.apaarId.trim());
@@ -266,23 +286,32 @@ export function runTperReconciliation(
             // Evaluated as non-conflicting transfer via Stage C
             // We can record or omit, but if existing had adjudication, preserve it
             if (existing) {
-              candidates.push(existing);
+              const candidateId = getUniqueCandidateId(existing.id);
+              candidates.push({
+                ...existing,
+                id: candidateId,
+              });
             }
             continue;
           }
 
           // Conflicting active enrolment detected!
           if (existing) {
+            const candidateId = getUniqueCandidateId(existing.id);
             candidates.push({
               ...existing,
+              id: candidateId,
               recordA: recA,
               recordB: recB,
               overlapDetected: interval.isOverlapping,
               overlapInterval: interval.overlapDescription,
             });
           } else {
+            const baseKeyedId = `tper-${slugA}__${slugB}`;
+            const candidateId = getUniqueCandidateId(baseKeyedId);
+
             const newCandidate: DuplicateCandidate = {
-              id: `tper-${recA.id.slice(-4)}-${recB.id.slice(-4)}`,
+              id: candidateId,
               recordA: recA,
               recordB: recB,
               matchingStage: 'STAGE_A_KEYED',
@@ -321,8 +350,10 @@ export function runTperReconciliation(
           const confidenceLevel = totalScore >= thresholds.highThreshold ? 'HIGH' : 'MEDIUM';
 
           if (existing) {
+            const candidateId = getUniqueCandidateId(existing.id);
             candidates.push({
               ...existing,
+              id: candidateId,
               recordA: recA,
               recordB: recB,
               confidenceScore: totalScore,
@@ -331,8 +362,11 @@ export function runTperReconciliation(
               overlapInterval: interval.overlapDescription,
             });
           } else {
+            const baseHeurId = `tper-heur-${slugA}__${slugB}`;
+            const candidateId = getUniqueCandidateId(baseHeurId);
+
             const newCandidate: DuplicateCandidate = {
-              id: `tper-heur-${recA.id.slice(-4)}-${recB.id.slice(-4)}`,
+              id: candidateId,
               recordA: recA,
               recordB: recB,
               matchingStage: 'STAGE_D_HEURISTIC',

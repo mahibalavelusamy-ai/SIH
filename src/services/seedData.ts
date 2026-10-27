@@ -355,7 +355,7 @@ export function generateSeedEnrolments(): StudentEnrolment[] {
   // SCENARIO D: Internal Batch Duplicate APAAR (V-04) at DTU
   const batchDupApaar = '859403827164';
   records.push({
-    id: 'rec-dtu-batch-dup-1',
+    id: 'rec-dtu-bdup-1',
     institutionId: 'INST-002',
     academicYear: '2026-27',
     programmeCode: 'BTECH-IT',
@@ -374,7 +374,7 @@ export function generateSeedEnrolments(): StudentEnrolment[] {
   });
 
   records.push({
-    id: 'rec-dtu-batch-dup-2',
+    id: 'rec-dtu-bdup-2',
     institutionId: 'INST-002',
     academicYear: '2026-27',
     programmeCode: 'BTECH-IT',
