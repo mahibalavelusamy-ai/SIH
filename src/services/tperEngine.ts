@@ -253,138 +253,171 @@ export function runTperReconciliation(
   // Exclude rejected records from reconciliation pool
   const eligibleRecords = allRecords.filter((r) => r.rowOutcome !== 'REJECTED');
 
-  // Pairwise cross-comparison across different institutions (or same institution with different studentRef)
-  for (let i = 0; i < eligibleRecords.length; i++) {
-    for (let j = i + 1; j < eligibleRecords.length; j++) {
-      const recA = eligibleRecords[i];
-      const recB = eligibleRecords[j];
+  const evaluateCandidatePair = (recA: StudentEnrolment, recB: StudentEnrolment) => {
+    // Cross-institution requirement: candidate records must originate from different institutions
+    if (recA.institutionId === recB.institutionId) return;
+    if (recA.id === recB.id) return;
 
-      // Avoid matching exact same record
-      if (recA.id === recB.id) continue;
+    const pairKey = [recA.id, recB.id].sort().join(':::');
+    if (seenPairKeys.has(pairKey)) return;
+    seenPairKeys.add(pairKey);
 
-      const pairKey = [recA.id, recB.id].sort().join(':::');
-      if (seenPairKeys.has(pairKey)) continue;
-      seenPairKeys.add(pairKey);
+    const existing = existingMap.get(pairKey);
+    const [sortedIdA, sortedIdB] = [recA.id, recB.id].sort();
+    const slugA = sortedIdA.replace(/^rec-/, '');
+    const slugB = sortedIdB.replace(/^rec-/, '');
 
-      const existing = existingMap.get(pairKey);
+    const aHasValidApaar = recA.apaarId && /^\d{12}$/.test(recA.apaarId.trim());
+    const bHasValidApaar = recB.apaarId && /^\d{12}$/.test(recB.apaarId.trim());
 
-      const [sortedIdA, sortedIdB] = [recA.id, recB.id].sort();
-      const slugA = sortedIdA.replace(/^rec-/, '');
-      const slugB = sortedIdB.replace(/^rec-/, '');
+    if (aHasValidApaar && bHasValidApaar && recA.apaarId!.trim() === recB.apaarId!.trim()) {
+      // Stage A Keyed Matching
+      const interval = evaluateEnrolmentIntervals(recA, recB);
+      const keyedId = deriveKeyedIdentifier(recA.apaarId!);
 
-      // Check if both have a valid 12-digit APAAR ID (Stage A Keyed Matching)
-      const aHasValidApaar = recA.apaarId && /^\d{12}$/.test(recA.apaarId.trim());
-      const bHasValidApaar = recB.apaarId && /^\d{12}$/.test(recB.apaarId.trim());
-
-      if (aHasValidApaar && bHasValidApaar) {
-        if (recA.apaarId!.trim() === recB.apaarId!.trim()) {
-          // Identical APAAR ID detected!
-          const interval = evaluateEnrolmentIntervals(recA, recB);
-          const keyedId = deriveKeyedIdentifier(recA.apaarId!);
-
-          if (interval.isLegitimateTransfer) {
-            // Evaluated as non-conflicting transfer via Stage C
-            // We can record or omit, but if existing had adjudication, preserve it
-            if (existing) {
-              const candidateId = getUniqueCandidateId(existing.id);
-              candidates.push({
-                ...existing,
-                id: candidateId,
-              });
-            }
-            continue;
-          }
-
-          // Conflicting active enrolment detected!
-          if (existing) {
-            const candidateId = getUniqueCandidateId(existing.id);
-            candidates.push({
-              ...existing,
-              id: candidateId,
-              recordA: recA,
-              recordB: recB,
-              overlapDetected: interval.isOverlapping,
-              overlapInterval: interval.overlapDescription,
-            });
-          } else {
-            const baseKeyedId = `tper-${slugA}__${slugB}`;
-            const candidateId = getUniqueCandidateId(baseKeyedId);
-
-            const newCandidate: DuplicateCandidate = {
-              id: candidateId,
-              recordA: recA,
-              recordB: recB,
-              matchingStage: 'STAGE_A_KEYED',
-              maskedKey: keyedId,
-              overlapDetected: interval.isOverlapping,
-              overlapInterval: interval.overlapDescription,
-              confidenceScore: 98,
-              confidenceLevel: 'HIGH',
-              signalBreakdown: {
-                nameSimilarityScore: 40,
-                dobExactMatchScore: 35,
-                temporalOverlapScore: interval.isOverlapping ? 15 : 0,
-                programmeSimilarityScore: recA.programmeCode === recB.programmeCode ? 10 : 8,
-              },
-              matchedRuleId: 'V-05',
-              explanation: `Identical keyed APAAR token (${keyedId}) active across Institute ${recA.institutionId} and ${recB.institutionId}. ${interval.overlapDescription}`,
-              transferEvidence: recA.transferStatus !== 'NONE' || recB.transferStatus !== 'NONE'
-                ? `Transfer status recorded: ${recA.institutionId}=${recA.transferStatus}, ${recB.institutionId}=${recB.transferStatus}`
-                : null,
-              status: 'PENDING_REVIEW',
-              decisionHistory: [],
-            };
-            candidates.push(newCandidate);
-          }
+      if (interval.isLegitimateTransfer) {
+        if (existing) {
+          const candidateId = getUniqueCandidateId(existing.id);
+          candidates.push({ ...existing, id: candidateId });
         }
+        return;
+      }
+
+      if (existing) {
+        const candidateId = getUniqueCandidateId(existing.id);
+        candidates.push({
+          ...existing,
+          id: candidateId,
+          recordA: recA,
+          recordB: recB,
+          overlapDetected: interval.isOverlapping,
+          overlapInterval: interval.overlapDescription,
+        });
       } else {
-        // Stage D: Heuristic matching path for records with missing/unmatched APAAR
-        // Both records must have temporal overlap to consider heuristic match
-        const interval = evaluateEnrolmentIntervals(recA, recB);
-        if (!interval.isOverlapping) continue;
+        const baseKeyedId = `tper-${slugA}__${slugB}`;
+        const candidateId = getUniqueCandidateId(baseKeyedId);
 
-        const { totalScore, breakdown } = calculateHeuristicDuplicateScore(recA, recB);
+        const newCandidate: DuplicateCandidate = {
+          id: candidateId,
+          recordA: recA,
+          recordB: recB,
+          matchingStage: 'STAGE_A_KEYED',
+          maskedKey: keyedId,
+          overlapDetected: interval.isOverlapping,
+          overlapInterval: interval.overlapDescription,
+          confidenceScore: 98,
+          confidenceLevel: 'HIGH',
+          signalBreakdown: {
+            nameSimilarityScore: 40,
+            dobExactMatchScore: 35,
+            temporalOverlapScore: interval.isOverlapping ? 15 : 0,
+            programmeSimilarityScore: recA.programmeCode === recB.programmeCode ? 10 : 8,
+          },
+          matchedRuleId: 'V-05',
+          explanation: `Identical keyed APAAR token (${keyedId}) active across Institute ${recA.institutionId} and ${recB.institutionId}. ${interval.overlapDescription}`,
+          transferEvidence:
+            recA.transferStatus !== 'NONE' || recB.transferStatus !== 'NONE'
+              ? `Transfer status recorded: ${recA.institutionId}=${recA.transferStatus}, ${recB.institutionId}=${recB.transferStatus}`
+              : null,
+          status: 'PENDING_REVIEW',
+          decisionHistory: [],
+        };
+        candidates.push(newCandidate);
+      }
+    } else {
+      // Stage D Heuristic Matching
+      const interval = evaluateEnrolmentIntervals(recA, recB);
+      if (!interval.isOverlapping) return;
 
-        // Configurable thresholds: >= highThreshold HIGH, >= mediumThreshold MEDIUM, else not raised
-        if (totalScore >= thresholds.mediumThreshold) {
-          const confidenceLevel = totalScore >= thresholds.highThreshold ? 'HIGH' : 'MEDIUM';
+      const { totalScore, breakdown } = calculateHeuristicDuplicateScore(recA, recB);
 
-          if (existing) {
-            const candidateId = getUniqueCandidateId(existing.id);
-            candidates.push({
-              ...existing,
-              id: candidateId,
-              recordA: recA,
-              recordB: recB,
-              confidenceScore: totalScore,
-              confidenceLevel,
-              overlapDetected: true,
-              overlapInterval: interval.overlapDescription,
-            });
-          } else {
-            const baseHeurId = `tper-heur-${slugA}__${slugB}`;
-            const candidateId = getUniqueCandidateId(baseHeurId);
+      if (totalScore >= thresholds.mediumThreshold) {
+        const confidenceLevel = totalScore >= thresholds.highThreshold ? 'HIGH' : 'MEDIUM';
 
-            const newCandidate: DuplicateCandidate = {
-              id: candidateId,
-              recordA: recA,
-              recordB: recB,
-              matchingStage: 'STAGE_D_HEURISTIC',
-              maskedKey: 'HEURISTIC-PROBABILISTIC-KEY',
-              overlapDetected: true,
-              overlapInterval: interval.overlapDescription,
-              confidenceScore: totalScore,
-              confidenceLevel,
-              signalBreakdown: breakdown,
-              matchedRuleId: 'V-05',
-              explanation: `High demographic similarity match without verified APAAR key. Name similarity (${breakdown.nameSimilarityScore}/40), DOB exact match (${breakdown.dobExactMatchScore}/35), Temporal overlap (${breakdown.temporalOverlapScore}/15).`,
-              transferEvidence: null,
-              status: 'PENDING_REVIEW',
-              decisionHistory: [],
-            };
-            candidates.push(newCandidate);
+        if (existing) {
+          const candidateId = getUniqueCandidateId(existing.id);
+          candidates.push({
+            ...existing,
+            id: candidateId,
+            recordA: recA,
+            recordB: recB,
+            confidenceScore: totalScore,
+            confidenceLevel,
+            overlapDetected: true,
+            overlapInterval: interval.overlapDescription,
+          });
+        } else {
+          const baseHeurId = `tper-heur-${slugA}__${slugB}`;
+          const candidateId = getUniqueCandidateId(baseHeurId);
+
+          const newCandidate: DuplicateCandidate = {
+            id: candidateId,
+            recordA: recA,
+            recordB: recB,
+            matchingStage: 'STAGE_D_HEURISTIC',
+            maskedKey: 'HEURISTIC-PROBABILISTIC-KEY',
+            overlapDetected: true,
+            overlapInterval: interval.overlapDescription,
+            confidenceScore: totalScore,
+            confidenceLevel,
+            signalBreakdown: breakdown,
+            matchedRuleId: 'V-05',
+            explanation: `High demographic similarity match without verified APAAR key. Name similarity (${breakdown.nameSimilarityScore}/40), DOB exact match (${breakdown.dobExactMatchScore}/35), Temporal overlap (${breakdown.temporalOverlapScore}/15).`,
+            transferEvidence: null,
+            status: 'PENDING_REVIEW',
+            decisionHistory: [],
+          };
+          candidates.push(newCandidate);
+        }
+      }
+    }
+  };
+
+  // Optimization: When dataset is large (>500 rows), use index blocking by APAAR ID and DOB for O(N) candidate detection
+  if (eligibleRecords.length > 500) {
+    const apaarIndex = new Map<string, StudentEnrolment[]>();
+    const dobIndex = new Map<string, StudentEnrolment[]>();
+
+    eligibleRecords.forEach((r) => {
+      if (r.apaarId && /^\d{12}$/.test(r.apaarId.trim())) {
+        const k = r.apaarId.trim();
+        if (!apaarIndex.has(k)) apaarIndex.set(k, []);
+        apaarIndex.get(k)!.push(r);
+      } else {
+        if (r.dateOfBirth) {
+          const k = r.dateOfBirth.trim();
+          if (!dobIndex.has(k)) dobIndex.set(k, []);
+          dobIndex.get(k)!.push(r);
+        }
+      }
+    });
+
+    // Evaluate Stage A keyed candidates
+    apaarIndex.forEach((bucket) => {
+      if (bucket.length > 1) {
+        for (let i = 0; i < bucket.length; i++) {
+          for (let j = i + 1; j < bucket.length; j++) {
+            evaluateCandidatePair(bucket[i], bucket[j]);
           }
         }
+      }
+    });
+
+    // Evaluate Stage D heuristic candidates within DOB blocks
+    dobIndex.forEach((bucket) => {
+      if (bucket.length > 1) {
+        for (let i = 0; i < bucket.length; i++) {
+          for (let j = i + 1; j < bucket.length; j++) {
+            evaluateCandidatePair(bucket[i], bucket[j]);
+          }
+        }
+      }
+    });
+  } else {
+    // Pairwise cross-comparison across different institutions for standard demonstration dataset
+    for (let i = 0; i < eligibleRecords.length; i++) {
+      for (let j = i + 1; j < eligibleRecords.length; j++) {
+        evaluateCandidatePair(eligibleRecords[i], eligibleRecords[j]);
       }
     }
   }

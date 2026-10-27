@@ -43,7 +43,7 @@ export const ROLE_PERMISSIONS: Record<Role, RolePermission> = {
     canSubmitData: false,
     canApproveInstitutionReview: false,
     canResolveCrossInstitutionExceptions: true,
-    canVerifyStudents: true,
+    canVerifyStudents: false,
     canConfigureRules: false,
     canResetDemo: false,
     canViewAudit: true,
@@ -58,10 +58,10 @@ export const ROLE_PERMISSIONS: Record<Role, RolePermission> = {
     canViewAudit: true,
   },
   SYSTEM_ADMIN: {
-    canSubmitData: true,
-    canApproveInstitutionReview: true,
-    canResolveCrossInstitutionExceptions: true,
-    canVerifyStudents: true,
+    canSubmitData: false,
+    canApproveInstitutionReview: false,
+    canResolveCrossInstitutionExceptions: false,
+    canVerifyStudents: false,
     canConfigureRules: true,
     canResetDemo: true,
     canViewAudit: true,
@@ -302,8 +302,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     isResubmission = false,
     originalSubId?: string
   ) => {
-    if (!permissions.canSubmitData && role !== 'SYSTEM_ADMIN') {
-      alert(`Role ${role} does not have permission to submit institutional enrolment batches.`);
+    if (!permissions.canSubmitData) {
+      addAuditEvent(
+        'ACCESS_DENIED',
+        'SUBMISSION',
+        institutionId,
+        'UNAUTHORIZED_ATTEMPT',
+        'DENIED',
+        `Role ${role} denied batch submission permission`,
+        'LEAST_PRIVILEGE_ENFORCEMENT'
+      );
+      alert(`Access Denied: Role ${role} does not have permission to submit institutional enrolment batches.`);
       return { submissionId: '', accepted: 0, flagged: 0, rejected: 0 };
     }
 
@@ -375,7 +384,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     reason: string
   ): boolean => {
     if (!permissions.canResolveCrossInstitutionExceptions && !permissions.canApproveInstitutionReview) {
-      alert(`Role ${role} is unauthorized to resolve cross-institutional exceptions.`);
+      addAuditEvent(
+        'ACCESS_DENIED',
+        'EXCEPTION_CANDIDATE',
+        candidateId,
+        'UNAUTHORIZED_ATTEMPT',
+        'DENIED',
+        `Role ${role} denied cross-institution exception adjudication permission`,
+        'LEAST_PRIVILEGE_ENFORCEMENT'
+      );
+      alert(`Access Denied: Role ${role} is unauthorized to resolve cross-institutional exceptions.`);
       return false;
     }
 
@@ -423,7 +441,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Rule configuration editor: updates rule and creates a new version
   const updateRuleDefinition = (updatedRule: RuleDefinition) => {
     if (!permissions.canConfigureRules) {
-      alert(`Role ${role} does not have permission to modify regulatory rules.`);
+      addAuditEvent(
+        'ACCESS_DENIED',
+        'RULE_ENGINE',
+        updatedRule.ruleId,
+        'UNAUTHORIZED_ATTEMPT',
+        'DENIED',
+        `Role ${role} denied rule configuration modification permission`,
+        'LEAST_PRIVILEGE_ENFORCEMENT'
+      );
+      alert(`Access Denied: Role ${role} does not have permission to modify regulatory rules.`);
       return;
     }
 
@@ -504,8 +531,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const inst = institutions.find((i) => i.id === institutionId);
     const instName = inst ? inst.name : institutionId;
 
-    if (!permissions.canVerifyStudents && role !== 'SYSTEM_ADMIN') {
-      alert(`Role ${role} is not permitted to query verification services. Switch to Verification Officer or AICTE Regulatory Reviewer.`);
+    if (!permissions.canVerifyStudents) {
+      addAuditEvent(
+        'ACCESS_DENIED',
+        'VERIFICATION_REQUEST',
+        maskedVal,
+        'UNAUTHORIZED_ATTEMPT',
+        'DENIED',
+        `Role ${role} denied student verification inquiry privilege`,
+        'LEAST_PRIVILEGE_ENFORCEMENT'
+      );
+      alert(`Access Denied: Role ${role} is not permitted to query verification services. Switch to Verification Officer.`);
       return {
         id: `VER-UNAUTH-${Date.now().toString().slice(-4)}`,
         timestamp: new Date().toISOString(),
@@ -518,7 +554,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         officerName: ROLE_DESCRIPTIONS[role].title,
         result: 'UNABLE_TO_VERIFY',
         reasonCode: 'ROLE_UNAUTHORIZED',
-        reasonDescription: `Current role ${role} does not possess verified student enquiry privileges.`,
+        reasonDescription: `Current role ${role} does not possess verified student enquiry privileges. Access denied by least-privilege RBAC policy.`,
       };
     }
 
@@ -582,6 +618,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
     }
 
+    // Minimum-disclosure responses: Never disclose student identity or records if not verified
+    if (result !== 'VERIFIED') {
+      matchedSnippet = undefined;
+    }
+
     const verificationReq: VerificationRequest = {
       id: `VER-${Date.now().toString().slice(-6)}`,
       timestamp: new Date().toISOString(),
@@ -615,6 +656,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Reset demo state with confirmed deterministic seed
   const resetDemoData = () => {
+    if (!permissions.canResetDemo) {
+      addAuditEvent(
+        'ACCESS_DENIED',
+        'SYSTEM_RESET',
+        'DEMO_STORE',
+        'UNAUTHORIZED_ATTEMPT',
+        'DENIED',
+        `Role ${role} denied demo reset permission`,
+        'LEAST_PRIVILEGE_ENFORCEMENT'
+      );
+      alert(`Access Denied: Role ${role} is not permitted to reset demonstration state.`);
+      return;
+    }
     localStorage.removeItem(STORAGE_KEY);
     const seed = initializeSeedState();
     setInstitutions(seed.institutions);

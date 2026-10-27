@@ -243,9 +243,9 @@ export const AicteMonitoringView: React.FC = () => {
       {/* Header and Toolbar */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 tracking-tight">AICTE Statutory Intake Monitoring</h1>
+          <h1 className="text-xl font-bold text-slate-900 tracking-tight">Programme-Level Intake Monitoring</h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Programme-level seat allocation reconciliation comparing approved Extension of Approval (EoA) quotas against reported active student rosters.
+            Demonstration validation based on configurable rules: Programme-level seat allocation reconciliation comparing configured synthetic regular intake limits against reported active student rosters.
           </p>
         </div>
 
@@ -272,7 +272,7 @@ export const AicteMonitoringView: React.FC = () => {
         <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-xs">
           <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wide block">Approved Regular</span>
           <div className="text-lg font-bold font-mono text-slate-900 mt-0.5">{totalApprovedRegular}</div>
-          <span className="text-[10px] text-slate-500">Statutory EoA cap</span>
+          <span className="text-[10px] text-slate-500">Configured synthetic limit</span>
         </div>
 
         <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-xs">
@@ -286,7 +286,7 @@ export const AicteMonitoringView: React.FC = () => {
           <div className={`text-lg font-bold font-mono mt-0.5 ${totalExcessSeats > 0 ? 'text-red-700' : 'text-teal-700'}`}>
             {totalExcessSeats > 0 ? `+${totalExcessSeats} Seats` : '0 (Compliant)'}
           </div>
-          <span className="text-[10px] text-slate-500">NITD CSE (+8)</span>
+          <span className="text-[10px] text-slate-500">Northstar CS (+8)</span>
         </div>
 
         <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-xs">
@@ -310,9 +310,9 @@ export const AicteMonitoringView: React.FC = () => {
 
       {/* Regulatory Dual Accounting Notice */}
       <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-lg text-xs space-y-1">
-        <span className="font-bold text-blue-900 block">AICTE Dual Quota Accounting Principle:</span>
+        <span className="font-bold text-blue-900 block">Dual Quota Accounting Principle (Assumed rules pending AICTE confirmation):</span>
         <p className="text-slate-700 leading-relaxed text-[11px]">
-          In strict conformance with AICTE Approval Process Handbooks, regular intake limits and supernumerary quotas (TFW, EWS, Lateral Entry) are non-fungible and counted independently. If a programme exceeds its regular quota, the aggregate discrepancy is flagged for regulatory review; individual students are not arbitrarily declared invalid.
+          Demonstration validation based on configurable rules: Regular intake limits and supernumerary quotas (TFW, EWS, Lateral Entry) are non-fungible and counted independently. If a programme exceeds its regular quota, the aggregate discrepancy is flagged as a programme-level finding for regulatory review; individual students are not arbitrarily declared invalid.
         </p>
       </div>
 

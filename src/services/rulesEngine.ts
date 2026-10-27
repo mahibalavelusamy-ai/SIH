@@ -18,7 +18,7 @@ export const DEFAULT_RULES: RuleDefinition[] = [
     enabled: true,
     version: INITIAL_RULE_VERSION,
     fieldsEvaluated: ['studentName', 'dateOfBirth', 'programmeCode', 'seatCategory', 'admissionDate'],
-    explanation: 'A submission row lacks essential institutional identifiers required for statutory enrolment tracking.',
+    explanation: 'A submission row lacks essential institutional identifiers required for enrolment tracking.',
     remediationGuidance: 'Ensure the source student ERP record contains all mandatory demographic and admission attributes before re-uploading.',
   },
   {
@@ -78,20 +78,20 @@ export const DEFAULT_RULES: RuleDefinition[] = [
     enabled: true,
     version: INITIAL_RULE_VERSION,
     fieldsEvaluated: ['dateOfBirth', 'admissionDate', 'seatCategory'],
-    explanation: 'Date is unparseable or calculates to an invalid student age at admission, or seat category is not recognized in statutory schemas.',
+    explanation: 'Date is unparseable or calculates to an invalid student age at admission, or seat category is not recognized in configurable schemas.',
     remediationGuidance: 'Correct date formatting to ISO YYYY-MM-DD and verify student age against official matriculation certificates.',
   },
   {
     ruleId: 'V-07',
     name: 'Admission Date Outside Session Window',
-    description: 'Flags enrolments with admission dates falling outside the AICTE academic calendar admission cutoff window.',
+    description: 'Flags enrolments with admission dates falling outside the academic calendar admission cutoff window.',
     severity: 'WARNING',
     blocking: false,
     enabled: true,
     version: INITIAL_RULE_VERSION,
     fieldsEvaluated: ['admissionDate', 'academicYear'],
-    explanation: 'Admission date is before the session opening or after the regulatory cutoff date without a recorded extension.',
-    remediationGuidance: 'Provide regulatory extension approval reference or adjust the admission date to the actual formal enrollment date.',
+    explanation: 'Admission date is before the session opening or after the cutoff date without a recorded extension.',
+    remediationGuidance: 'Provide extension approval reference or adjust the admission date to the actual formal enrollment date.',
   },
   {
     ruleId: 'V-08',
@@ -108,19 +108,19 @@ export const DEFAULT_RULES: RuleDefinition[] = [
   {
     ruleId: 'V-09',
     name: 'Approved Regular Intake Excess',
-    description: 'Detects when valid counted regular enrolments exceed the statutory approved regular intake limit for the programme.',
+    description: 'Detects when valid counted regular enrolments exceed the configured synthetic regular intake limit for the programme.',
     severity: 'WARNING',
     blocking: false,
     enabled: true,
     version: INITIAL_RULE_VERSION,
     fieldsEvaluated: ['programmeCode', 'supernumeraryFlag', 'seatCategory'],
-    explanation: 'Aggregate programme enrolments exceed approved regular capacity. Flagged as a regulatory intake variance for investigation.',
-    remediationGuidance: 'Review admitted roster against the AICTE Extension of Approval (EoA) regular seat matrix.',
+    explanation: 'Aggregate programme enrolments exceed configured synthetic regular capacity. Flagged as a programme-level finding for investigation.',
+    remediationGuidance: 'Review admitted roster against the configured regular seat matrix.',
   },
   {
     ruleId: 'V-10',
     name: 'Supernumerary Category Limit Excess',
-    description: 'Flags when admitted students in a specific supernumerary category (e.g. TFW) exceed the statutory permissible quota (e.g. 5%).',
+    description: 'Flags when admitted students in a specific supernumerary category (e.g. TFW) exceed the configured synthetic quota limit.',
     severity: 'WARNING',
     blocking: false,
     enabled: true,
@@ -138,7 +138,7 @@ export const DEFAULT_RULES: RuleDefinition[] = [
     enabled: true,
     version: INITIAL_RULE_VERSION,
     fieldsEvaluated: ['supernumeraryCategory', 'seatCategory'],
-    explanation: 'Student claims supernumerary quota but lacks mandatory supporting documentation flags.',
+    explanation: 'Student claims supernumerary quota but lacks supporting documentation flags under assumed rules pending AICTE confirmation.',
     remediationGuidance: 'Verify state admission authority allotment letter confirming quota entitlement before resubmitting.',
   },
   {
@@ -396,7 +396,7 @@ export function evaluateRowRules(
         observedValue: `supernumeraryFlag=true, seatCategory=${row.seatCategory}, superCategory=${row.supernumeraryCategory || 'NONE'}`,
         reason: isManagementSuper
           ? 'Supernumerary flag cannot be claimed under Management quota.'
-          : `Supernumerary quota claimed, but category '${row.supernumeraryCategory || row.seatCategory}' is not an eligible supernumerary quota under AICTE norms.`,
+          : `Supernumerary quota claimed, but category '${row.supernumeraryCategory || row.seatCategory}' is not an eligible supernumerary quota under assumed rules pending AICTE confirmation.`,
         remediationGuidance: r11.remediationGuidance,
       });
     }
@@ -546,8 +546,8 @@ export function processSubmissionBatch(
         severity: 'WARNING',
         fields: ['approvedRegularIntake', 'regularEnrolments'],
         observedValue: `${regularCount} regular active / ${limit.approvedRegularIntake} approved (Excess: +${excess})`,
-        reason: `Counted active regular student enrolments exceed the approved intake limit of ${limit.approvedRegularIntake} by ${excess} seats.`,
-        remediationGuidance: 'Review admissions register against approved AICTE intake quota.',
+        reason: `Counted active regular student enrolments exceed the configured synthetic regular intake limit of ${limit.approvedRegularIntake} by ${excess} seats. Programme-level finding.`,
+        remediationGuidance: 'Review admissions register against configured synthetic regular intake limit.',
       };
       intakeFindings.push(finding);
       allFindings.push(finding);
@@ -610,8 +610,8 @@ export function processSubmissionBatch(
               severity: 'WARNING',
               fields: [`supernumeraryLimits.${catKey}`],
               observedValue: `${matchingEnrolments.length} reported / ${catLimit} limit (Excess: +${excess})`,
-              reason: `${label} seats: ${matchingEnrolments.length} reported against a configured limit of ${catLimit}.`,
-              remediationGuidance: `Reconcile ${label} allotment list with state central admission authority quota.`,
+              reason: `${label} seats: ${matchingEnrolments.length} reported against a configured synthetic limit of ${catLimit}. Programme-level finding.`,
+              remediationGuidance: `Reconcile ${label} allotment list with configured synthetic quota ceiling.`,
             };
             intakeFindings.push(finding);
             allFindings.push(finding);

@@ -130,6 +130,8 @@ export const OverviewView: React.FC = () => {
       'V-08': { count: 0, name: 'Seat Category & Quota Conflict', severity: 'WARNING' },
       'V-09': { count: 0, name: 'Approved Regular Intake Excess', severity: 'WARNING' },
       'V-10': { count: 0, name: 'Supernumerary Quota Ceiling Excess', severity: 'WARNING' },
+      'V-11': { count: 0, name: 'Supernumerary Eligibility Discrepancy', severity: 'WARNING' },
+      'V-12': { count: 0, name: 'Approved Programme Zero Enrolment Notice', severity: 'INFO' },
     };
 
     filteredRecords.forEach((r) => {
@@ -142,8 +144,11 @@ export const OverviewView: React.FC = () => {
       }
     });
 
+    // Programme-level findings: V-09 is calculated from programme intake comparison
+    counts['V-09'].count = excessProgrammeCount;
+
     return counts;
-  }, [filteredRecords]);
+  }, [filteredRecords, excessProgrammeCount]);
 
   return (
     <div className="space-y-6">
@@ -315,7 +320,7 @@ export const OverviewView: React.FC = () => {
             <TrendingUp className={`w-4 h-4 ${excessProgrammeCount > 0 ? 'text-red-600' : 'text-slate-400'}`} />
           </div>
           <span className={`text-[10px] mt-1 ${excessProgrammeCount > 0 ? 'text-red-600' : 'text-slate-400'}`}>
-            {excessProgrammeCount > 0 ? 'Exceeds EoA quota' : 'Within capacity'}
+            {excessProgrammeCount > 0 ? 'Exceeds configured regular limit' : 'Within capacity'}
           </span>
         </div>
       </div>

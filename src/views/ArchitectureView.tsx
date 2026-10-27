@@ -119,7 +119,7 @@ const ARCHITECTURE_COMPONENTS: ComponentDetail[] = [
     tier: 'Tier 4: Storage & Persistence',
     boundaryType: 'IMPLEMENTED',
     summary:
-      'Central reactive state store managing 220+ synthetic records across 5 AICTE institutions (NITD, COEP, DTU, HITK, TIET), approved intake limits, historical submissions, candidate queues, and deterministic reset capabilities.',
+      'Central reactive state store managing 224 synthetic records across 5 fictional institutions (Northstar Institute, Cedar Technical College, Riverbend University, Summit Arts College, Lakeview Institute), configured regular intake limits, historical submissions, candidate queues, and deterministic reset capabilities.',
     inputs: ['Seed generation parameters', 'User submissions and adjudications', 'JSON snapshot imports'],
     outputs: ['Reactive React state', 'Synchronized browser localStorage', 'Complete JSON backup archives'],
     privacySafeguards: [
