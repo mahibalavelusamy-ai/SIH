@@ -632,6 +632,122 @@ export const TestBenchView: React.FC = () => {
       durationMs: Number((performance.now() - t20Start).toFixed(2)),
     });
 
+    // Test 21: Rule V-05 Within-Institution Concurrent Enrolment
+    const t21Start = performance.now();
+    const batchV05: StudentEnrolment[] = [
+      {
+        ...recV01,
+        id: 'rec-v05-a',
+        programmeCode: 'BTECH-CSE',
+        studentReference: '2026-NITD-MULTI-01',
+        studentName: 'Dual Enrolment Candidate',
+        apaarId: '988877776666',
+        enrolmentStatus: 'ACTIVE',
+      },
+      {
+        ...recV01,
+        id: 'rec-v05-b',
+        programmeCode: 'BTECH-ECE',
+        studentReference: '2026-NITD-MULTI-01',
+        studentName: 'Dual Enrolment Candidate',
+        apaarId: '988877776666',
+        enrolmentStatus: 'ACTIVE',
+      },
+    ];
+    const resV05 = processSubmissionBatch(batchV05, DEFAULT_RULES, intakeLimits);
+    const passT21 = resV05.processedRecords.every((r) => r.findings?.some((f) => f.ruleId === 'V-05'));
+    results.push({
+      id: 'TC-21',
+      name: 'Rule V-05: Within-Institution Dual Active Enrolment Detection',
+      category: 'RULES',
+      description: 'Detects student simultaneously active in two programmes (CSE and ECE) at the same institution and session.',
+      expected: 'Both records flagged with Rule V-05',
+      actual: passT21 ? 'Rule V-05 triggered on both concurrent records' : 'Failed to trigger V-05',
+      passed: passT21,
+      durationMs: Number((performance.now() - t21Start).toFixed(2)),
+    });
+
+    // Test 22: Rule V-10 Multi-Category Supernumerary Limit (NRI Quota Excess)
+    const t22Start = performance.now();
+    const testLimitNri = intakeLimits.find(
+      (l) => l.institutionId === 'INST-001' && l.programmeCode === 'BTECH-CSE'
+    );
+    const nriLimit = testLimitNri?.supernumeraryLimits.nri || 6;
+    const nriBatch: StudentEnrolment[] = Array.from({ length: nriLimit + 2 }, (_, i) => ({
+      ...recV01,
+      id: `rec-nri-${i}`,
+      studentReference: `2026-NITD-NRI-${i}`,
+      studentName: `NRI Student ${i}`,
+      seatCategory: 'NRI',
+      supernumeraryFlag: true,
+      supernumeraryCategory: 'NRI',
+      enrolmentStatus: 'ACTIVE',
+    }));
+    const resV10 = processSubmissionBatch(nriBatch, DEFAULT_RULES, intakeLimits);
+    const passT22 = resV10.intakeFindings.some(
+      (f) => f.ruleId === 'V-10' && f.fields.includes('supernumeraryLimits.nri')
+    );
+    results.push({
+      id: 'TC-22',
+      name: 'Rule V-10: Supernumerary Quota Ceiling Violation (NRI Quota)',
+      category: 'INTAKE_MATH',
+      description: `Evaluates ${nriLimit + 2} admitted NRI students against configured ceiling of ${nriLimit}.`,
+      expected: `Rule V-10 finding for supernumeraryLimits.nri with excess +2`,
+      actual: passT22 ? `Rule V-10 triggered for NRI quota limit excess` : 'Failed to trigger V-10 for NRI',
+      passed: passT22,
+      durationMs: Number((performance.now() - t22Start).toFixed(2)),
+    });
+
+    // Test 23: Rule V-11 Supernumerary Ineligible Category Discrepancy
+    const t23Start = performance.now();
+    const recV11: StudentEnrolment = {
+      ...recV01,
+      id: 'rec-v11-test',
+      studentName: 'Management Quota Test',
+      seatCategory: 'MANAGEMENT',
+      supernumeraryFlag: true, // Ineligible: Management cannot be supernumerary!
+    };
+    const resV11 = evaluateRowRules(recV11, DEFAULT_RULES, dummyDupMap);
+    const passT23 = resV11.findings.some((f) => f.ruleId === 'V-11');
+    results.push({
+      id: 'TC-23',
+      name: 'Rule V-11: Supernumerary Ineligible Category Discrepancy',
+      category: 'RULES',
+      description: 'Flags enrolment where supernumerary flag is set on an ineligible seat category (Management quota).',
+      expected: 'Rule V-11 finding present with WARNING severity',
+      actual: passT23 ? 'Rule V-11 triggered for ineligible category' : 'Failed to trigger V-11',
+      passed: passT23,
+      durationMs: Number((performance.now() - t23Start).toFixed(2)),
+    });
+
+    // Test 24: Rule V-12 Zero Enrolment Notice for Approved Programme
+    const t24Start = performance.now();
+    const singleProgBatch: StudentEnrolment[] = [
+      {
+        ...recV01,
+        id: 'rec-v12-only-cse',
+        institutionId: 'INST-001',
+        academicYear: '2026-27',
+        programmeCode: 'BTECH-CSE',
+        studentReference: '2026-NITD-CS-SINGLE',
+        studentName: 'Single Prog Student',
+        enrolmentStatus: 'ACTIVE',
+      },
+    ];
+    const resV12 = processSubmissionBatch(singleProgBatch, DEFAULT_RULES, intakeLimits);
+    const v12Findings = resV12.intakeFindings.filter((f) => f.ruleId === 'V-12');
+    const passT24 = v12Findings.some((f) => f.recordId.includes('BTECH-ECE'));
+    results.push({
+      id: 'TC-24',
+      name: 'Rule V-12: Approved Programme Zero Enrolment Notice',
+      category: 'RULES',
+      description: 'Flags approved programmes in institution profile (e.g. BTECH-ECE) reporting zero student enrolments.',
+      expected: 'Rule V-12 finding for approved un-reported programme BTECH-ECE',
+      actual: passT24 ? `Rule V-12 triggered for ${v12Findings.length} un-reported approved programmes` : 'Failed to trigger V-12',
+      passed: passT24,
+      durationMs: Number((performance.now() - t24Start).toFixed(2)),
+    });
+
     const totalDuration = performance.now() - startTime;
     setBenchmarkDurationMs(Number(totalDuration.toFixed(2)));
     setBenchmarkRunId(`BENCH-${Date.now().toString().slice(-6)}`);

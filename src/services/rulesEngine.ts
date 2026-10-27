@@ -375,6 +375,33 @@ export function evaluateRowRules(
     }
   }
 
+  // V-11: Supernumerary Eligibility Discrepancy
+  const r11 = ruleMap.get('V-11');
+  if (r11 && r11.enabled && row.supernumeraryFlag) {
+    const validSuperCategories = ['TFW', 'EWS', 'LATERAL_ENTRY', 'PMSSS', 'JNK', 'NRI'];
+    const isCategoryEligible =
+      (row.supernumeraryCategory && validSuperCategories.includes(row.supernumeraryCategory)) ||
+      (row.seatCategory === 'TFW' || row.seatCategory === 'NRI');
+
+    const isManagementSuper = row.seatCategory === 'MANAGEMENT';
+
+    if (!isCategoryEligible || isManagementSuper) {
+      findings.push({
+        id: `f-${row.id}-v11`,
+        recordId: row.id,
+        studentReference: row.studentReference,
+        ruleId: 'V-11',
+        severity: 'WARNING',
+        fields: ['supernumeraryFlag', 'seatCategory', 'supernumeraryCategory'],
+        observedValue: `supernumeraryFlag=true, seatCategory=${row.seatCategory}, superCategory=${row.supernumeraryCategory || 'NONE'}`,
+        reason: isManagementSuper
+          ? 'Supernumerary flag cannot be claimed under Management quota.'
+          : `Supernumerary quota claimed, but category '${row.supernumeraryCategory || row.seatCategory}' is not an eligible supernumerary quota under AICTE norms.`,
+        remediationGuidance: r11.remediationGuidance,
+      });
+    }
+  }
+
   // Determine single initial row outcome
   let outcome: RowOutcome = 'ACCEPTED';
   const hasBlocking = findings.some((f) => f.severity === 'BLOCKING');
@@ -435,7 +462,53 @@ export function processSubmissionBatch(
     else if (outcome === 'REJECTED') rejected++;
   });
 
-  // Now evaluate Programme-Level Rules V-09 and V-10 on non-rejected records
+  // Rule V-05: Within-batch active enrolments for same student in same institution & year
+  const r05 = activeRules.find((r) => r.ruleId === 'V-05' && r.enabled);
+  if (r05) {
+    const studentActiveEnrolmentMap = new Map<string, StudentEnrolment[]>();
+    processedRecords.forEach((r) => {
+      if (r.enrolmentStatus === 'ACTIVE' && r.rowOutcome !== 'REJECTED') {
+        const studentKey = r.apaarId && /^\d{12}$/.test(r.apaarId.trim())
+          ? `apaar_${r.apaarId.trim()}`
+          : `ref_${r.studentReference.trim().toLowerCase()}`;
+        const instYearKey = `${r.institutionId}_${r.academicYear}_${studentKey}`;
+        if (!studentActiveEnrolmentMap.has(instYearKey)) {
+          studentActiveEnrolmentMap.set(instYearKey, []);
+        }
+        studentActiveEnrolmentMap.get(instYearKey)!.push(r);
+      }
+    });
+
+    studentActiveEnrolmentMap.forEach((enrolList) => {
+      if (enrolList.length > 1) {
+        const progs = Array.from(new Set(enrolList.map((e) => e.programmeCode))).join(', ');
+        enrolList.forEach((r) => {
+          if (!r.findings?.some((f) => f.ruleId === 'V-05')) {
+            const v05Finding: ValidationFinding = {
+              id: `f-${r.id}-v05`,
+              recordId: r.id,
+              studentReference: r.studentReference,
+              ruleId: 'V-05',
+              severity: 'WARNING',
+              fields: ['enrolmentStatus', 'programmeCode', 'academicYear'],
+              observedValue: `Active in programmes: [${progs}] at ${r.institutionId}`,
+              reason: `This student is active in multiple programmes (${progs}) at this institution in academic year ${r.academicYear}.`,
+              remediationGuidance: r05.remediationGuidance,
+            };
+            r.findings = [...(r.findings || []), v05Finding];
+            if (r.rowOutcome === 'ACCEPTED') {
+              r.rowOutcome = 'FLAGGED';
+              accepted--;
+              flagged++;
+            }
+            allFindings.push(v05Finding);
+          }
+        });
+      }
+    });
+  }
+
+  // Now evaluate Programme-Level Rules V-09, V-10, and V-12 on non-rejected records
   const intakeFindings: ValidationFinding[] = [];
   const nonRejected = processedRecords.filter((r) => r.rowOutcome !== 'REJECTED');
 
@@ -449,6 +522,7 @@ export function processSubmissionBatch(
 
   const r09 = activeRules.find((r) => r.ruleId === 'V-09' && r.enabled);
   const r10 = activeRules.find((r) => r.ruleId === 'V-10' && r.enabled);
+  const r12 = activeRules.find((r) => r.ruleId === 'V-12' && r.enabled);
 
   grouped.forEach((enrolments, key) => {
     const [instId, progCode, ay] = key.split('_');
@@ -479,29 +553,101 @@ export function processSubmissionBatch(
       allFindings.push(finding);
     }
 
-    // Check TFW supernumerary limit if configured
-    if (r10) {
-      const tfwEnrolments = enrolments.filter(
-        (e) => (e.supernumeraryCategory === 'TFW' || e.seatCategory === 'TFW') && e.enrolmentStatus === 'ACTIVE'
-      );
-      if (limit.supernumeraryLimits.tfw > 0 && tfwEnrolments.length > limit.supernumeraryLimits.tfw) {
-        const excessTfw = tfwEnrolments.length - limit.supernumeraryLimits.tfw;
+    // Check all supernumerary categories against configured limits
+    if (r10 && limit.supernumeraryLimits) {
+      const superCategories: {
+        key: keyof typeof limit.supernumeraryLimits;
+        label: string;
+        matchFn: (e: StudentEnrolment) => boolean;
+      }[] = [
+        {
+          key: 'tfw',
+          label: 'Tuition Fee Waiver (TFW)',
+          matchFn: (e) =>
+            (e.supernumeraryCategory === 'TFW' || e.seatCategory === 'TFW') && e.enrolmentStatus === 'ACTIVE',
+        },
+        {
+          key: 'nri',
+          label: 'NRI Quota',
+          matchFn: (e) =>
+            (e.supernumeraryCategory === 'NRI' || e.seatCategory === 'NRI') && e.enrolmentStatus === 'ACTIVE',
+        },
+        {
+          key: 'ews',
+          label: 'EWS Quota',
+          matchFn: (e) =>
+            (e.supernumeraryCategory === 'EWS' || e.seatCategory === 'EWS') && e.enrolmentStatus === 'ACTIVE',
+        },
+        {
+          key: 'lateralEntry',
+          label: 'Lateral Entry',
+          matchFn: (e) =>
+            (e.supernumeraryCategory === 'LATERAL_ENTRY' || !!e.lateralEntryFlag) && e.enrolmentStatus === 'ACTIVE',
+        },
+        {
+          key: 'pmsss',
+          label: 'PMSSS Quota',
+          matchFn: (e) => e.supernumeraryCategory === 'PMSSS' && e.enrolmentStatus === 'ACTIVE',
+        },
+        {
+          key: 'jnk',
+          label: 'J&K Quota',
+          matchFn: (e) => e.supernumeraryCategory === 'JNK' && e.enrolmentStatus === 'ACTIVE',
+        },
+      ];
+
+      superCategories.forEach(({ key: catKey, label, matchFn }) => {
+        const catLimit = limit.supernumeraryLimits[catKey] ?? 0;
+        if (catLimit > 0) {
+          const matchingEnrolments = enrolments.filter(matchFn);
+          if (matchingEnrolments.length > catLimit) {
+            const excess = matchingEnrolments.length - catLimit;
+            const finding: ValidationFinding = {
+              id: `${catKey}-${key}-v10`,
+              recordId: `PROG-${progCode}-${catKey.toUpperCase()}`,
+              studentReference: `Programme ${progCode} (${label})`,
+              ruleId: 'V-10',
+              severity: 'WARNING',
+              fields: [`supernumeraryLimits.${catKey}`],
+              observedValue: `${matchingEnrolments.length} reported / ${catLimit} limit (Excess: +${excess})`,
+              reason: `${label} seats: ${matchingEnrolments.length} reported against a configured limit of ${catLimit}.`,
+              remediationGuidance: `Reconcile ${label} allotment list with state central admission authority quota.`,
+            };
+            intakeFindings.push(finding);
+            allFindings.push(finding);
+          }
+        }
+      });
+    }
+  });
+
+  // Rule V-12: Approved Programme Zero Enrolment Notice
+  if (r12 && records.length > 0) {
+    const instId = records[0].institutionId;
+    const ay = records[0].academicYear;
+    const instLimits = intakeLimits.filter(
+      (l) => l.institutionId === instId && l.academicYear === ay && l.approvedRegularIntake > 0
+    );
+
+    instLimits.forEach((limit) => {
+      const hasEnrolments = nonRejected.some((r) => r.programmeCode === limit.programmeCode);
+      if (!hasEnrolments) {
         const finding: ValidationFinding = {
-          id: `tfw-${key}-v10`,
-          recordId: `PROG-${progCode}-TFW`,
-          studentReference: `Programme ${progCode} (TFW)`,
-          ruleId: 'V-10',
-          severity: 'WARNING',
-          fields: ['supernumeraryLimits.tfw'],
-          observedValue: `${tfwEnrolments.length} TFW enrolments / ${limit.supernumeraryLimits.tfw} max quota (Excess: +${excessTfw})`,
-          reason: `Admitted Tuition Fee Waiver (TFW) supernumerary enrolments exceed approved ceiling of ${limit.supernumeraryLimits.tfw}.`,
-          remediationGuidance: 'Reconcile TFW allotment list with state central admission authority quota.',
+          id: `zero-${instId}-${limit.programmeCode}-${ay}-v12`,
+          recordId: `PROG-${limit.programmeCode}`,
+          studentReference: `Programme ${limit.programmeCode}`,
+          ruleId: 'V-12',
+          severity: 'INFO',
+          fields: ['programmeCode'],
+          observedValue: `0 reported enrolments / ${limit.approvedRegularIntake} approved intake`,
+          reason: `No students were reported for ${limit.programmeCode} ${ay}, which has an approved regular intake of ${limit.approvedRegularIntake}.`,
+          remediationGuidance: r12.remediationGuidance,
         };
         intakeFindings.push(finding);
         allFindings.push(finding);
       }
-    }
-  });
+    });
+  }
 
   return {
     processedRecords,
