@@ -135,6 +135,8 @@ export interface AppContextType {
   verificationRequests: VerificationRequest[];
   rules: RuleDefinition[];
   ruleVersion: string;
+  showEntryPortal: boolean;
+  setShowEntryPortal: (show: boolean) => void;
   setRole: (role: Role) => void;
   setActiveNav: (nav: string) => void;
   setSelectedInstitutionId: (id: string) => void;
@@ -172,7 +174,22 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   // Try loading state from localStorage or seed
   const [role, setRoleState] = useState<Role>('AICTE_REVIEWER');
-  const [activeNav, setActiveNav] = useState<string>('overview');
+  const [activeNav, setActiveNav] = useState<string>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('nav') || 'overview';
+    } catch {
+      return 'overview';
+    }
+  });
+  const [showEntryPortal, setShowEntryPortal] = useState<boolean>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('portal') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [selectedInstitutionId, setSelectedInstitutionId] = useState<string>('INST-001');
   const [selectedAcademicYear, setSelectedAcademicYear] = useState<string>('2026-27');
 
@@ -762,7 +779,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (!permissions.canResetDemo) {
       addAuditEvent(
         'ACCESS_DENIED',
-        'SYSTEM_RESET',
+        'DEMO_STATE',
         'DEMO_STORE',
         'UNAUTHORIZED_ATTEMPT',
         'DENIED',
@@ -864,6 +881,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         verificationRequests,
         rules,
         ruleVersion,
+        showEntryPortal,
+        setShowEntryPortal,
         setRole,
         setActiveNav,
         setSelectedInstitutionId,

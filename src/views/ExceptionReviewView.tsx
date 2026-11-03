@@ -372,14 +372,77 @@ export const ExceptionReviewView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Temporal & Overlap Diagnostic Card */}
-              <div className="p-3 bg-slate-50 rounded border border-slate-200 text-xs space-y-1.5">
-                <div className="flex items-center gap-2">
-                  <Clock className="w-3.5 h-3.5 text-blue-600" />
-                  <span className="font-semibold text-slate-900">Temporal & Transition Analysis:</span>
+              {/* Prominent Visible Diagnostic: Why Was This Flagged? */}
+              <div className="p-4 bg-amber-50/50 rounded-xl border border-amber-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <AlertOctagon className="w-4 h-4 text-amber-700" />
+                    <span className="font-bold text-slate-900 text-xs">
+                      Why This Candidate Was Flagged (Statutory Finding Breakdown)
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300">
+                    Rule V-05 Active Overlap
+                  </span>
                 </div>
-                <p className="text-slate-700 leading-relaxed text-[11px]">{activeCandidate.overlapInterval}</p>
-                <p className="text-slate-600 leading-relaxed text-[11px]">{activeCandidate.explanation}</p>
+
+                <div className="text-xs text-slate-800 leading-relaxed font-sans space-y-1.5">
+                  <p>
+                    <strong>Primary Regulatory Trigger:</strong> A student identity matching on{' '}
+                    <code className="bg-amber-100/80 px-1 py-0.5 rounded text-amber-950 font-mono font-bold">
+                      {activeCandidate.matchingStage === 'STAGE_A_KEYED'
+                        ? `Identical 12-digit APAAR (${maskApaarId(activeCandidate.recordA.apaarId)})`
+                        : `Demographic Fingerprint (DOB: ${activeCandidate.recordA.dateOfBirth} & Fuzzy Name Score ${activeCandidate.confidenceScore}%)`}
+                    </code>{' '}
+                    is concurrently enrolled as an <strong>ACTIVE student</strong> at two distinct regulatory institutions:{' '}
+                    <strong>{instA?.name || activeCandidate.recordA.institutionId}</strong> and{' '}
+                    <strong>{instB?.name || activeCandidate.recordB.institutionId}</strong>.
+                  </p>
+                  <p className="text-slate-600">
+                    {activeCandidate.explanation}
+                  </p>
+                </div>
+
+                {/* Transfer-Related Evidence Breakdown */}
+                <div className="pt-2.5 border-t border-amber-200/70">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-slate-900 mb-2">
+                    <FileCheck className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Transfer-Related Evidence & Chronology Audit:</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px] font-mono bg-white/90 p-3 rounded-lg border border-amber-200/80">
+                    <div className="space-y-1">
+                      <span className="font-bold text-slate-700 block">Institution A Chronology:</span>
+                      <div className="text-slate-600">Admission: <strong className="text-slate-900">{activeCandidate.recordA.admissionDate}</strong></div>
+                      <div className="text-slate-600">Enrolment: <span className="text-blue-700 font-semibold">{activeCandidate.recordA.enrolmentStatus}</span></div>
+                      <div className="text-slate-600">Transfer Filed: <span className="text-slate-800">{activeCandidate.recordA.transferStatus}</span></div>
+                      <div className="text-slate-600">Release Date: <span className="text-slate-800">{activeCandidate.recordA.transferEffectiveDate || 'None on record'}</span></div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <span className="font-bold text-slate-700 block">Institution B Chronology:</span>
+                      <div className="text-slate-600">Admission: <strong className="text-slate-900">{activeCandidate.recordB.admissionDate}</strong></div>
+                      <div className="text-slate-600">Enrolment: <span className="text-blue-700 font-semibold">{activeCandidate.recordB.enrolmentStatus}</span></div>
+                      <div className="text-slate-600">Transfer Filed: <span className="text-slate-800">{activeCandidate.recordB.transferStatus}</span></div>
+                      <div className="text-slate-600">Release Date: <span className="text-slate-800">{activeCandidate.recordB.transferEffectiveDate || 'None on record'}</span></div>
+                    </div>
+                  </div>
+
+                  {/* Transfer Evidence Assessment */}
+                  <div className="mt-2 text-[11px] text-slate-700 bg-white/70 p-2.5 rounded border border-amber-200/60 leading-relaxed">
+                    <strong className="text-amber-950">Statutory Transfer Assessment: </strong>
+                    {activeCandidate.recordA.transferEffectiveDate || activeCandidate.recordB.transferEffectiveDate ? (
+                      <span>
+                        Official transfer transition recorded. Reviewer must verify whether release date from{' '}
+                        {instA?.name} predates admission date at {instB?.name} to clear as a legitimate migration.
+                      </span>
+                    ) : (
+                      <span>
+                        <strong>Unreleased Transfer / Concurrent Seat Holding:</strong> No official Relinquishment Certificate or Transfer Effective Date was uploaded by the prior institution. The candidate is actively occupying capacity in both rosters, violating AICTE Approval Process Handbook guidelines.
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {/* Decision History (Audit Continuity) */}

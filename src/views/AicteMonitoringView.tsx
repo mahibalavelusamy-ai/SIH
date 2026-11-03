@@ -1,14 +1,24 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
+import { PageHeader } from '../components/ui/PageHeader';
+import { StatusIndicator } from '../components/ui/StatusIndicator';
+import { DetailDrawer } from '../components/ui/DetailDrawer';
 import {
-  BarChart3,
   Download,
-  Filter,
   AlertTriangle,
   CheckCircle2,
   AlertOctagon,
   TrendingUp,
   FileSpreadsheet,
+  Layers,
+  FileWarning,
+  Building2,
+  BookOpen,
+  Filter,
+  ArrowRight,
+  ShieldAlert,
+  ChevronRight,
+  Search,
 } from 'lucide-react';
 
 export const AicteMonitoringView: React.FC = () => {
@@ -26,6 +36,8 @@ export const AicteMonitoringView: React.FC = () => {
   const [filterInstitution, setFilterInstitution] = useState<string>('ALL');
   const [filterProgramme, setFilterProgramme] = useState<string>('ALL');
   const [filterDiscrepancyOnly, setFilterDiscrepancyOnly] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [selectedProgrammeLimitId, setSelectedProgrammeLimitId] = useState<string | null>(null);
 
   // Compute programme-level reconciliation matrix
   const matrixData = useMemo(() => {
@@ -121,7 +133,17 @@ export const AicteMonitoringView: React.FC = () => {
           status,
         };
       })
-      .filter((row) => (filterDiscrepancyOnly ? row.status !== 'COMPLIANT' : true));
+      .filter((row) => (filterDiscrepancyOnly ? row.status !== 'COMPLIANT' : true))
+      .filter((row) => {
+        if (!searchQuery.trim()) return true;
+        const q = searchQuery.toLowerCase();
+        return (
+          row.programmeCode.toLowerCase().includes(q) ||
+          row.programmeName.toLowerCase().includes(q) ||
+          row.institutionName.toLowerCase().includes(q) ||
+          row.institutionCode.toLowerCase().includes(q)
+        );
+      });
   }, [
     intakeLimits,
     records,
@@ -133,6 +155,7 @@ export const AicteMonitoringView: React.FC = () => {
     filterInstitution,
     filterProgramme,
     filterDiscrepancyOnly,
+    searchQuery,
   ]);
 
   // CSV Export of the reconciliation report
@@ -238,116 +261,225 @@ export const AicteMonitoringView: React.FC = () => {
   const totalExcessSeats = matrixData.reduce((acc, curr) => (curr.regularVariance > 0 ? acc + curr.regularVariance : acc), 0);
   const totalOpenExceptions = matrixData.reduce((acc, curr) => acc + curr.openExceptions, 0);
 
+  // Selected row for detail drawer
+  const selectedRow = matrixData.find((m) => m.id === selectedProgrammeLimitId);
+  const selectedRowRecords = selectedRow
+    ? records.filter(
+        (r) =>
+          r.institutionId === selectedRow.institutionId &&
+          r.programmeCode === selectedRow.programmeCode &&
+          r.academicYear === selectedRow.academicYear &&
+          r.rowOutcome !== 'REJECTED'
+      )
+    : [];
+
   return (
     <div className="space-y-6">
-      {/* Header and Toolbar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 tracking-tight">Programme-Level Intake Monitoring</h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Demonstration validation based on configurable rules: Programme-level seat allocation reconciliation comparing configured synthetic regular intake limits against reported active student rosters.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleExportBreachNotices}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-red-700 hover:bg-red-800 text-white rounded text-xs font-medium transition-colors shadow-xs"
-          >
-            <Download className="w-3.5 h-3.5" />
-            Export Breach Notices (CSV)
-          </button>
-          <button
-            onClick={handleExportCSV}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded text-xs font-medium transition-colors shadow-xs"
-          >
-            <Download className="w-3.5 h-3.5" />
-            Export Intake Report (CSV)
-          </button>
-        </div>
-      </div>
-
-      {/* Executive KPI Summary Ribbon */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-xs">
-          <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wide block">Approved Regular</span>
-          <div className="text-lg font-bold font-mono text-slate-900 mt-0.5">{totalApprovedRegular}</div>
-          <span className="text-[10px] text-slate-500">Configured synthetic limit</span>
-        </div>
-
-        <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-xs">
-          <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wide block">Counted Regular</span>
-          <div className="text-lg font-bold font-mono text-blue-700 mt-0.5">{totalCountedRegular}</div>
-          <span className="text-[10px] text-slate-500">Active non-supernumerary</span>
-        </div>
-
-        <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-xs">
-          <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wide block">Net Regular Excess</span>
-          <div className={`text-lg font-bold font-mono mt-0.5 ${totalExcessSeats > 0 ? 'text-red-700' : 'text-teal-700'}`}>
-            {totalExcessSeats > 0 ? `+${totalExcessSeats} Seats` : '0 (Compliant)'}
+      {/* Editorial Header */}
+      <PageHeader
+        breadcrumbs={[
+          { label: 'IDVERA' },
+          { label: 'Regulatory Oversight' },
+          { label: 'Programme Seat Ledger' },
+        ]}
+        title="Programme-Wise Statutory Seat Ledger & Quota Audits"
+        subtitle="Mathematical reconciliation comparing approved regular intake ceilings against counted student rosters, isolating supernumerary quotas (TFW, EWS, PMSSS)."
+        badge={
+          <span className="font-mono text-[11px] text-[#168C83] bg-teal-50 border border-teal-200 px-2.5 py-0.5 rounded font-semibold flex items-center gap-1.5">
+            <Layers className="w-3.5 h-3.5 text-[#168C83]" />
+            AICTE APH RECONCILIATION
+          </span>
+        }
+        actions={
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleExportBreachNotices}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-800 border border-red-200 rounded text-xs font-semibold transition-colors shadow-2xs cursor-pointer"
+            >
+              <FileWarning className="w-3.5 h-3.5 text-[#C94C4C]" />
+              Export Breach Notices
+            </button>
+            <button
+              onClick={handleExportCSV}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#101C32] hover:bg-slate-800 text-white rounded text-xs font-semibold transition-colors shadow-2xs cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5 text-[#315EAA]" />
+              Export Intake Ledger
+            </button>
           </div>
-          <span className="text-[10px] text-slate-500">Northstar CS (+8)</span>
+        }
+      />
+
+      {/* COMPOSITE STATUTORY INTAKE DOSSIER (Replaces 6 separate small cards with 3 composite panels) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* Panel 1: Regular Capacity vs Counted Enrolment */}
+        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between space-y-4">
+          <div>
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-500">
+                Regular Intake Capacity
+              </span>
+              {totalExcessSeats > 0 ? (
+                <span className="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-red-50 text-[#C94C4C] border border-red-200 animate-pulse">
+                  +{totalExcessSeats} Excess Seats
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-teal-50 text-[#168C83] border border-teal-200">
+                  Fully Compliant
+                </span>
+              )}
+            </div>
+
+            <div className="mt-4 flex items-baseline justify-between">
+              <div>
+                <span className="text-3xl font-extrabold font-mono text-[#101C32] tabular-nums">
+                  {totalCountedRegular}
+                </span>
+                <span className="text-xs text-slate-500 font-sans ml-2">Enrolled Regular</span>
+              </div>
+              <span className="text-xs font-mono text-slate-500">
+                Cap: <strong className="text-slate-800 font-bold">{totalApprovedRegular}</strong>
+              </span>
+            </div>
+
+            <div className="mt-3 p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-600 font-sans">
+              {totalExcessSeats > 0 ? (
+                <span className="text-red-700 font-medium">
+                  <strong>Breach Alert:</strong> Northstar B.Sc Computer Science has exceeded sanctioned capacity (+8 seats). Formal hearing required under AICTE APH Chapter 2.
+                </span>
+              ) : (
+                <span className="text-teal-700 font-medium">
+                  All active programmes are within sanctioned regular ceilings.
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs font-mono text-slate-400">
+            <span>AY {selectedAcademicYear}</span>
+            <span>{matrixData.length} Programmes Active</span>
+          </div>
         </div>
 
-        <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-xs">
-          <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wide block">Supernumerary Seats</span>
-          <div className="text-lg font-bold font-mono text-slate-900 mt-0.5">{totalSupernumerary}</div>
-          <span className="text-[10px] text-slate-500">TFW, EWS, Lateral</span>
+        {/* Panel 2: Supernumerary Welfare Quota Isolation */}
+        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between space-y-4">
+          <div>
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-500">
+                Supernumerary Quotas
+              </span>
+              <span className="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                Over-and-Above
+              </span>
+            </div>
+
+            <div className="mt-4 flex items-baseline justify-between">
+              <div>
+                <span className="text-3xl font-extrabold font-mono text-indigo-900 tabular-nums">
+                  {totalSupernumerary}
+                </span>
+                <span className="text-xs text-slate-500 font-sans ml-2">Total Quota Students</span>
+              </div>
+              <span className="text-xs font-mono text-slate-400">TFW + EWS + PMSSS</span>
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-mono">
+              <div className="p-2 bg-slate-50 rounded border border-slate-200">
+                <span className="text-[10px] text-slate-500 block">Tuition Fee Waiver:</span>
+                <strong className="text-sm text-slate-900">{matrixData.reduce((a, b) => a + b.tfwCount, 0)} Seats</strong>
+              </div>
+              <div className="p-2 bg-slate-50 rounded border border-slate-200">
+                <span className="text-[10px] text-slate-500 block">Economically Weaker:</span>
+                <strong className="text-sm text-slate-900">{matrixData.reduce((a, b) => a + b.ewsCount, 0)} Seats</strong>
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-slate-100 text-[11px] text-slate-500 font-sans">
+            Statutory welfare seats are mathematically ring-fenced from regular open limits.
+          </div>
         </div>
 
-        <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-xs">
-          <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wide block">Compliance Rate</span>
-          <div className="text-lg font-bold font-mono text-teal-700 mt-0.5">{complianceRate}%</div>
-          <span className="text-[10px] text-slate-500">{compliantCount} of {matrixData.length} programmes</span>
-        </div>
+        {/* Panel 3: Institutional Regulatory Health & Compliance Gauge */}
+        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between space-y-4">
+          <div>
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-500">
+                Programme Compliance Rate
+              </span>
+              <span className="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-teal-50 text-[#168C83] border border-teal-200">
+                {complianceRate}% Ratio
+              </span>
+            </div>
 
-        <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-xs">
-          <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wide block">Programme Exceptions</span>
-          <div className="text-lg font-bold font-mono text-amber-700 mt-0.5">{totalOpenExceptions} Open</div>
-          <span className="text-[10px] text-slate-500">Under TPER review</span>
+            <div className="mt-4 flex items-baseline justify-between">
+              <div>
+                <span className="text-3xl font-extrabold font-mono text-[#101C32] tabular-nums">
+                  {compliantCount} / {matrixData.length}
+                </span>
+                <span className="text-xs text-slate-500 font-sans ml-2">Compliant Programmes</span>
+              </div>
+              <span className="text-xs font-mono text-amber-700 font-bold">
+                {totalOpenExceptions} Open Exceptions
+              </span>
+            </div>
+
+            {/* Proportion Bar */}
+            <div className="mt-3 space-y-1.5">
+              <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden flex">
+                <div style={{ width: `${complianceRate}%` }} className="bg-[#168C83] h-full" />
+                <div style={{ width: `${100 - complianceRate}%` }} className="bg-[#C94C4C] h-full" />
+              </div>
+              <div className="flex justify-between text-[10px] font-mono text-slate-400">
+                <span>{compliantCount} compliant</span>
+                <span>{matrixData.length - compliantCount} breach</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-slate-100 text-[11px] text-slate-500 font-sans">
+            Rule V-09 triggers automatically when Counted Regular &gt; Approved Regular.
+          </div>
         </div>
       </div>
 
-      {/* Regulatory Dual Accounting Notice */}
-      <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-lg text-xs space-y-1">
-        <span className="font-bold text-blue-900 block">Dual Quota Accounting Principle (Assumed rules pending AICTE confirmation):</span>
-        <p className="text-slate-700 leading-relaxed text-[11px]">
-          Demonstration validation based on configurable rules: Regular intake limits and supernumerary quotas (TFW, EWS, Lateral Entry) are non-fungible and counted independently. If a programme exceeds its regular quota, the aggregate discrepancy is flagged as a programme-level finding for regulatory review; individual students are not arbitrarily declared invalid.
-        </p>
-      </div>
+      {/* Filter and Search Ribbon */}
+      <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1.5 text-xs text-slate-500 px-1">
+            <Filter className="w-3.5 h-3.5 text-slate-400" />
+            <span className="font-medium text-slate-700">Filter Ledger:</span>
+          </div>
 
-      {/* Filter Ribbon */}
-      <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2 text-xs">
-          <Filter className="w-3.5 h-3.5 text-slate-400" />
-          <span className="font-medium text-slate-700">Filters:</span>
-
+          {/* Academic Session */}
           <select
             value={selectedAcademicYear}
             onChange={(e) => setSelectedAcademicYear(e.target.value)}
-            className="bg-slate-50 border border-slate-200 rounded px-2 py-1 font-mono text-slate-800"
+            className="text-xs bg-slate-50 border border-slate-200 rounded px-2.5 py-1 text-slate-700 font-mono font-medium focus:outline-none focus:ring-1 focus:ring-[#315EAA] cursor-pointer"
           >
             <option value="2026-27">AY 2026-27</option>
             <option value="2025-26">AY 2025-26</option>
           </select>
 
+          {/* Institution Selector */}
           <select
             value={filterInstitution}
             onChange={(e) => setFilterInstitution(e.target.value)}
-            className="bg-slate-50 border border-slate-200 rounded px-2 py-1 text-slate-800 max-w-[180px] truncate"
+            className="text-xs bg-slate-50 border border-slate-200 rounded px-2.5 py-1 text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#315EAA] max-w-[170px] truncate cursor-pointer font-medium"
           >
-            <option value="ALL">All Institutions</option>
+            <option value="ALL">All Campuses</option>
             {institutions.map((i) => (
               <option key={i.id} value={i.id}>
-                {i.code} - {i.name}
+                {i.code} — {i.name}
               </option>
             ))}
           </select>
 
+          {/* Programme Selector */}
           <select
             value={filterProgramme}
             onChange={(e) => setFilterProgramme(e.target.value)}
-            className="bg-slate-50 border border-slate-200 rounded px-2 py-1 text-slate-800"
+            className="text-xs bg-slate-50 border border-slate-200 rounded px-2.5 py-1 text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#315EAA] cursor-pointer font-medium"
           >
             <option value="ALL">All Programmes</option>
             {programmes.map((p) => (
@@ -357,139 +489,203 @@ export const AicteMonitoringView: React.FC = () => {
             ))}
           </select>
 
-          <label className="flex items-center gap-1.5 ml-2 cursor-pointer text-slate-700">
-            <input
-              type="checkbox"
-              checked={filterDiscrepancyOnly}
-              onChange={(e) => setFilterDiscrepancyOnly(e.target.checked)}
-              className="rounded text-blue-600 focus:ring-blue-500"
-            />
-            <span>Show Discrepancies Only</span>
-          </label>
+          {/* Breach Only Toggle */}
+          <button
+            type="button"
+            onClick={() => setFilterDiscrepancyOnly(!filterDiscrepancyOnly)}
+            className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors flex items-center gap-1 cursor-pointer ${
+              filterDiscrepancyOnly
+                ? 'bg-red-600 text-white border-red-600'
+                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+            }`}
+          >
+            <AlertTriangle className="w-3 h-3" />
+            <span>Show Breaches Only</span>
+          </button>
         </div>
 
-        <span className="text-xs font-mono text-slate-500">{matrixData.length} Programmes Evaluated</span>
+        {/* Live Search */}
+        <div className="relative">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search programme, code, campus..."
+            className="text-xs bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-3 py-1.5 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#315EAA] w-64"
+          />
+          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+        </div>
       </div>
 
-      {/* Programme Reconciliation Table */}
-      <div className="bg-white rounded-lg border border-slate-200 shadow-xs overflow-hidden">
+      {/* Deep Master Seat Ledger Table */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+        <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/50">
+          <div>
+            <h3 className="text-sm font-bold text-[#101C32]">Statutory Programme Quota Reconciliation Ledger</h3>
+            <p className="text-xs text-slate-500">Row-level breakdown comparing approved regular ceilings with counted student rosters</p>
+          </div>
+          <span className="text-xs font-mono font-bold text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded border border-slate-200">
+            {matrixData.length} Programmes in View
+          </span>
+        </div>
+
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs divide-y divide-slate-200">
-            <thead className="bg-slate-50 text-slate-500 font-mono text-[11px] uppercase border-b border-slate-200">
+            <thead className="bg-slate-50 text-slate-600 font-mono text-[11px] uppercase border-b border-slate-200">
               <tr>
-                <th className="py-2.5 px-3">Institution & Programme</th>
+                <th className="py-2.5 px-3">Host Campus</th>
+                <th className="py-2.5 px-3">Programme</th>
                 <th className="py-2.5 px-3 text-right">Approved Regular</th>
                 <th className="py-2.5 px-3 text-right">Counted Regular</th>
-                <th className="py-2.5 px-3 text-right">Regular Variance</th>
-                <th className="py-2.5 px-3 text-right">TFW Limit / Rep</th>
-                <th className="py-2.5 px-3 text-right">Total Active</th>
-                <th className="py-2.5 px-3 text-center">Open Exceptions</th>
-                <th className="py-2.5 px-3">Latest Filing</th>
-                <th className="py-2.5 px-3">Reconciliation Status</th>
+                <th className="py-2.5 px-3 text-center">Variance</th>
+                <th className="py-2.5 px-3 text-right">TFW Super</th>
+                <th className="py-2.5 px-3 text-right">EWS Super</th>
+                <th className="py-2.5 px-3 text-right font-bold">Total Campus Intake</th>
+                <th className="py-2.5 px-3 text-center">Statutory Verdict</th>
+                <th className="py-2.5 px-3 text-center">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
-              {matrixData.map((row) => {
-                const isRegularExcess = row.regularExcess;
-                const isTfwExcess = row.tfwExcess;
-                const isZero = row.status === 'ZERO_ENROLMENT';
-
-                return (
-                  <tr
-                    key={row.id}
-                    className={`hover:bg-slate-50/70 transition-colors ${
-                      isRegularExcess ? 'bg-red-50/20' : isTfwExcess ? 'bg-amber-50/20' : ''
-                    }`}
-                  >
+            <tbody className="divide-y divide-slate-100 bg-white font-sans">
+              {matrixData.length === 0 ? (
+                <tr>
+                  <td colSpan={10} className="py-8 text-center text-slate-400 font-mono text-xs">
+                    No programmes found matching current criteria.
+                  </td>
+                </tr>
+              ) : (
+                matrixData.map((row) => (
+                  <tr key={row.id} className="hover:bg-slate-50/70 transition-colors">
                     <td className="py-2.5 px-3">
-                      <div className="font-semibold text-slate-900">{row.institutionName}</div>
-                      <div className="text-[11px] font-mono text-slate-500 flex items-center gap-1.5 mt-0.5">
-                        <span className="text-blue-700 font-bold">{row.programmeCode}</span>
-                        <span>·</span>
-                        <span>AY {row.academicYear}</span>
-                      </div>
+                      <div className="font-bold text-slate-900">{row.institutionName}</div>
+                      <span className="font-mono text-[10px] text-slate-400">{row.institutionCode}</span>
                     </td>
-
-                    <td className="py-2.5 px-3 text-right font-mono text-slate-600 font-semibold">
+                    <td className="py-2.5 px-3">
+                      <div className="font-semibold text-slate-900">{row.programmeName}</div>
+                      <span className="font-mono text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200">
+                        {row.programmeCode}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono font-medium text-slate-700 tabular-nums">
                       {row.approvedRegularIntake}
                     </td>
-
-                    <td
-                      className={`py-2.5 px-3 text-right font-mono font-bold ${
-                        isRegularExcess ? 'text-red-700' : 'text-slate-900'
-                      }`}
-                    >
+                    <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900 tabular-nums">
                       {row.countedRegular}
                     </td>
-
-                    <td className="py-2.5 px-3 text-right font-mono">
-                      {row.regularVariance > 0 ? (
-                        <span className="font-bold text-red-700 bg-red-100 px-1.5 py-0.5 rounded border border-red-200">
-                          +{row.regularVariance} Excess
+                    <td className="py-2.5 px-3 text-center font-mono">
+                      {row.regularExcess ? (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-800 border border-red-300">
+                          +{row.regularVariance} Breach
                         </span>
-                      ) : row.regularVariance === 0 ? (
-                        <span className="text-teal-700">0 (Full)</span>
                       ) : (
-                        <span className="text-slate-500">{row.regularVariance} Seats</span>
+                        <span className="px-2 py-0.5 rounded text-[10px] bg-slate-100 text-slate-600 font-medium">
+                          {row.approvedRegularIntake - row.countedRegular} Vacant
+                        </span>
                       )}
                     </td>
-
-                    <td className="py-2.5 px-3 text-right font-mono text-slate-700">
-                      <span>{row.tfwLimit}</span> /{' '}
-                      <span className={isTfwExcess ? 'text-amber-800 font-bold' : 'text-slate-900'}>
-                        {row.tfwCount}
-                      </span>
-                      {isTfwExcess && <span className="ml-1 text-[10px] text-amber-600 font-bold">(+Excess)</span>}
+                    <td className="py-2.5 px-3 text-right font-mono text-indigo-700 font-medium tabular-nums">
+                      {row.tfwCount} / {row.tfwLimit}
                     </td>
-
-                    <td className="py-2.5 px-3 text-right font-mono font-semibold text-slate-900">
+                    <td className="py-2.5 px-3 text-right font-mono text-indigo-700 font-medium tabular-nums">
+                      {row.ewsCount} / {row.ewsLimit}
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono font-extrabold text-slate-900 tabular-nums">
                       {row.totalActive}
                     </td>
-
                     <td className="py-2.5 px-3 text-center">
-                      {row.openExceptions > 0 ? (
-                        <span className="font-mono text-[10px] font-bold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded border border-amber-200">
-                          {row.openExceptions} Open
-                        </span>
-                      ) : (
-                        <span className="text-slate-400 font-mono">—</span>
-                      )}
-                    </td>
-
-                    <td className="py-2.5 px-3 font-mono text-[11px] text-slate-600">
-                      <div>{row.latestSubId}</div>
-                      <div className="text-[10px] text-slate-400">Engine {row.ruleVersion}</div>
-                    </td>
-
-                    <td className="py-2.5 px-3">
-                      {row.status === 'COMPLIANT' && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-teal-50 text-teal-700 border border-teal-200">
-                          <CheckCircle2 className="w-3 h-3 text-teal-600" /> COMPLIANT
-                        </span>
-                      )}
                       {row.status === 'REGULAR_EXCESS' && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-red-50 text-red-700 border border-red-200">
-                          <AlertTriangle className="w-3 h-3 text-red-600" /> REGULAR EXCESS
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-red-700 border border-red-200">
+                          <AlertTriangle className="w-3 h-3 text-red-600" />
+                          REGULAR EXCESS
                         </span>
                       )}
                       {row.status === 'QUOTA_EXCESS' && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
-                          <AlertTriangle className="w-3 h-3 text-amber-600" /> SUPERNUMERARY EXCESS
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                          <AlertTriangle className="w-3 h-3 text-amber-600" />
+                          SUPERNUMERARY BREACH
                         </span>
                       )}
                       {row.status === 'ZERO_ENROLMENT' && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
                           ZERO ENROLMENT
                         </span>
                       )}
+                      {row.status === 'COMPLIANT' && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200">
+                          <CheckCircle2 className="w-3 h-3 text-teal-600" />
+                          COMPLIANT
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-3 text-center">
+                      <button
+                        onClick={() => setSelectedProgrammeLimitId(row.id)}
+                        className="p-1 rounded hover:bg-slate-100 text-[#315EAA] transition-colors cursor-pointer"
+                        title="Inspect Roster"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
                     </td>
                   </tr>
-                );
-              })}
+                ))
+              )}
             </tbody>
           </table>
         </div>
       </div>
+
+      {/* Programme Enrolment Inspector Drawer */}
+      <DetailDrawer
+        isOpen={Boolean(selectedProgrammeLimitId)}
+        onClose={() => setSelectedProgrammeLimitId(null)}
+        title={`Programme Roster: ${selectedRow?.programmeCode || ''}`}
+        subtitle={`${selectedRow?.programmeName || ''} at ${selectedRow?.institutionName || ''}`}
+      >
+        {selectedRow && (
+          <div className="space-y-4 text-xs font-sans">
+            <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1 font-mono">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Approved Regular:</span>
+                <strong className="text-slate-900">{selectedRow.approvedRegularIntake} Seats</strong>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Enrolled Regular:</span>
+                <strong className={`font-bold ${selectedRow.regularExcess ? 'text-red-600' : 'text-slate-900'}`}>
+                  {selectedRow.countedRegular} Seats
+                </strong>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Supernumerary:</span>
+                <strong className="text-indigo-700">{selectedRow.tfwCount + selectedRow.ewsCount} Seats (TFW + EWS)</strong>
+              </div>
+            </div>
+
+            <div className="space-y-2 pt-2 border-t border-slate-200">
+              <span className="font-bold text-slate-800">Enrolled Students in this Programme ({selectedRowRecords.length}):</span>
+              <div className="max-h-[340px] overflow-y-auto divide-y divide-slate-100 border border-slate-200 rounded-lg">
+                {selectedRowRecords.map((rec) => (
+                  <div key={rec.id} className="p-2.5 flex items-center justify-between text-[11px]">
+                    <div>
+                      <div className="font-semibold text-slate-900">{rec.studentName}</div>
+                      <span className="font-mono text-slate-400 text-[10px]">
+                        Ref: {rec.studentReference} · Category: {rec.seatCategory}
+                      </span>
+                    </div>
+                    <span
+                      className={`font-mono text-[9px] font-bold px-1.5 py-0.2 rounded border ${
+                        rec.supernumeraryFlag
+                          ? 'bg-indigo-50 text-indigo-800 border-indigo-200'
+                          : 'bg-slate-100 text-slate-700 border-slate-200'
+                      }`}
+                    >
+                      {rec.supernumeraryFlag ? `SUPER (${rec.supernumeraryCategory})` : 'REGULAR'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </DetailDrawer>
     </div>
   );
 };

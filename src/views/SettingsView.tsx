@@ -1,16 +1,19 @@
 import React, { useState } from 'react';
 import { useApp, ROLE_PERMISSIONS, ROLE_DESCRIPTIONS } from '../context/AppContext';
 import { Role } from '../types';
+import { PageHeader } from '../components/ui/PageHeader';
+import { MetricCard } from '../components/ui/MetricCard';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import {
-  Settings,
   RotateCcw,
   Download,
   Upload,
-  Trash2,
   Shield,
   CheckCircle2,
   AlertTriangle,
   Lock,
+  KeyRound,
+  Database,
 } from 'lucide-react';
 
 export const SettingsView: React.FC = () => {
@@ -28,6 +31,7 @@ export const SettingsView: React.FC = () => {
 
   const [importText, setImportText] = useState<string>('');
   const [importStatus, setImportStatus] = useState<string>('');
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const roles: Role[] = [
     'INSTITUTION_SUBMITTER',
@@ -68,25 +72,68 @@ export const SettingsView: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 tracking-tight">Platform Settings & Demo Controls</h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Manage deterministic seed datasets, snapshot import/export, and inspect central permission matrices.
-          </p>
-        </div>
+      <PageHeader
+        breadcrumbs={[
+          { label: 'IDVERA' },
+          { label: 'Platform' },
+          { label: 'Settings & Demo Controls' },
+        ]}
+        title="Platform Settings & Demo Controls"
+        subtitle="Manage deterministic seed datasets, snapshot state import/export, and inspect central RBAC permission matrices."
+        badge={
+          <span className="font-mono text-[11px] text-slate-700 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded font-semibold">
+            STATE CONTROLS
+          </span>
+        }
+        actions={
+          <button
+            onClick={() => setShowResetConfirm(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded text-xs font-medium transition-colors shadow-xs"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            Reset to Clean Seed Dataset
+          </button>
+        }
+      />
 
-        <button
-          onClick={() => {
-            if (confirm('Reset synthetic dataset to clean seed state? This restores all 220+ records.')) {
-              resetDemoData();
-            }
-          }}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded text-xs font-medium transition-colors shadow-xs"
-        >
-          <RotateCcw className="w-3.5 h-3.5" />
-          Reset to Clean Seed Dataset
-        </button>
+      {/* Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={showResetConfirm}
+        onConfirm={() => {
+          resetDemoData();
+          setShowResetConfirm(false);
+        }}
+        onClose={() => setShowResetConfirm(false)}
+        title="Reset Synthetic Demonstration Dataset"
+        description="Are you sure you want to restore the clean seed state? This will revert all 220+ student records, 5 batches, and clear transient manual reviews."
+        confirmLabel="Reset Everything"
+        tone="danger"
+      />
+
+      {/* Metrics Row */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <MetricCard
+          label="Total Records"
+          value={records.length}
+          subValue="Active student records"
+          tone="indigo"
+        />
+        <MetricCard
+          label="Submission Batches"
+          value={submissions.length}
+          subValue="Historical filings"
+        />
+        <MetricCard
+          label="Audit Journal Blocks"
+          value={auditEvents.length}
+          subValue="SHA-256 chained events"
+          tone="teal"
+        />
+        <MetricCard
+          label="Active Rules"
+          value={rules.length}
+          subValue="Statutory validation gates"
+        />
       </div>
 
       {/* Role Permission Matrix Reference Card */}
@@ -94,14 +141,16 @@ export const SettingsView: React.FC = () => {
         <div className="flex items-center justify-between pb-3 border-b border-slate-100">
           <div className="flex items-center gap-2">
             <Shield className="w-4 h-4 text-blue-600" />
-            <h2 className="text-sm font-semibold text-slate-900">Enterprise Role-Based Access Control (RBAC) Matrix</h2>
+            <h2 className="text-xs font-semibold text-slate-900 font-mono uppercase tracking-wider">
+              Enterprise Role-Based Access Control (RBAC) Matrix
+            </h2>
           </div>
           <span className="text-[10px] font-mono text-slate-400">Strictly Enforced at Action Handlers</span>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs divide-y divide-slate-200">
-            <thead className="bg-slate-50 text-slate-500 font-mono text-[11px] uppercase border-b border-slate-200">
+            <thead className="bg-slate-50 text-slate-600 font-mono text-[11px] uppercase border-b border-slate-200">
               <tr>
                 <th className="py-2.5 px-3">Role</th>
                 <th className="py-2.5 px-3 text-center">Submit Data</th>
@@ -118,19 +167,19 @@ export const SettingsView: React.FC = () => {
                 const isCurrent = role === r;
 
                 return (
-                  <tr key={r} className={isCurrent ? 'bg-blue-50/60 font-semibold' : 'hover:bg-slate-50'}>
+                  <tr key={r} className={isCurrent ? 'bg-blue-50/50 font-semibold' : 'hover:bg-slate-50/80 transition-colors'}>
                     <td className="py-2.5 px-3 font-sans font-medium text-slate-900">
                       {ROLE_DESCRIPTIONS[r].title}
                       {isCurrent && (
-                        <span className="ml-2 font-mono text-[10px] bg-blue-600 text-white px-1.5 py-0.2 rounded font-normal">
-                          Active Role
+                        <span className="ml-2 font-mono text-[10px] bg-[#0F172A] text-white px-2 py-0.5 rounded font-normal">
+                          Active Persona
                         </span>
                       )}
                     </td>
 
                     <td className="py-2.5 px-3 text-center">
                       {perm.canSubmitData ? (
-                        <span className="text-teal-700">✓ Yes</span>
+                        <span className="text-teal-700 font-semibold">✓ Yes</span>
                       ) : (
                         <span className="text-slate-400">✕ No</span>
                       )}
@@ -138,7 +187,7 @@ export const SettingsView: React.FC = () => {
 
                     <td className="py-2.5 px-3 text-center">
                       {perm.canApproveInstitutionReview ? (
-                        <span className="text-teal-700">✓ Yes</span>
+                        <span className="text-teal-700 font-semibold">✓ Yes</span>
                       ) : (
                         <span className="text-slate-400">✕ No</span>
                       )}
@@ -146,7 +195,7 @@ export const SettingsView: React.FC = () => {
 
                     <td className="py-2.5 px-3 text-center">
                       {perm.canResolveCrossInstitutionExceptions ? (
-                        <span className="text-teal-700">✓ Yes</span>
+                        <span className="text-teal-700 font-semibold">✓ Yes</span>
                       ) : (
                         <span className="text-slate-400">✕ No</span>
                       )}
@@ -154,7 +203,7 @@ export const SettingsView: React.FC = () => {
 
                     <td className="py-2.5 px-3 text-center">
                       {perm.canVerifyStudents ? (
-                        <span className="text-teal-700">✓ Yes</span>
+                        <span className="text-teal-700 font-semibold">✓ Yes</span>
                       ) : (
                         <span className="text-slate-400">✕ No</span>
                       )}
@@ -162,7 +211,7 @@ export const SettingsView: React.FC = () => {
 
                     <td className="py-2.5 px-3 text-center">
                       {perm.canConfigureRules ? (
-                        <span className="text-teal-700">✓ Yes</span>
+                        <span className="text-teal-700 font-semibold">✓ Yes</span>
                       ) : (
                         <span className="text-slate-400">✕ No</span>
                       )}
@@ -170,7 +219,7 @@ export const SettingsView: React.FC = () => {
 
                     <td className="py-2.5 px-3 text-center">
                       {perm.canResetDemo ? (
-                        <span className="text-teal-700">✓ Yes</span>
+                        <span className="text-teal-700 font-semibold">✓ Yes</span>
                       ) : (
                         <span className="text-slate-400">✕ No</span>
                       )}
@@ -190,10 +239,12 @@ export const SettingsView: React.FC = () => {
           <div>
             <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
               <Download className="w-4 h-4 text-blue-600" />
-              <h3 className="text-sm font-semibold text-slate-900">Export Demonstration State Snapshot</h3>
+              <h3 className="text-xs font-semibold text-slate-900 font-mono uppercase tracking-wider">
+                Export State Snapshot
+              </h3>
             </div>
 
-            <p className="mt-3 text-xs text-slate-600 leading-relaxed">
+            <p className="mt-3 text-xs text-slate-600 leading-relaxed font-sans">
               Export the current state (including {records.length} records, {submissions.length} submissions, and {auditEvents.length} audit events) into a portable JSON snapshot file.
             </p>
           </div>
@@ -201,9 +252,9 @@ export const SettingsView: React.FC = () => {
           <div className="pt-3 border-t border-slate-100">
             <button
               onClick={handleExport}
-              className="w-full py-2 px-3 bg-slate-900 hover:bg-slate-800 text-white rounded text-xs font-medium transition-colors flex items-center justify-center gap-1.5"
+              className="w-full py-2 px-3 bg-[#0F172A] hover:bg-slate-800 text-white rounded text-xs font-medium transition-colors flex items-center justify-center gap-1.5 shadow-xs"
             >
-              <Download className="w-3.5 h-3.5" />
+              <Download className="w-3.5 h-3.5 text-blue-400" />
               Download JSON State Snapshot
             </button>
           </div>
@@ -214,10 +265,12 @@ export const SettingsView: React.FC = () => {
           <div>
             <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
               <Upload className="w-4 h-4 text-slate-600" />
-              <h3 className="text-sm font-semibold text-slate-900">Import State Snapshot</h3>
+              <h3 className="text-xs font-semibold text-slate-900 font-mono uppercase tracking-wider">
+                Import State Snapshot
+              </h3>
             </div>
 
-            <p className="mt-3 text-xs text-slate-600 leading-relaxed">
+            <p className="mt-3 text-xs text-slate-600 leading-relaxed font-sans">
               Paste a previously exported IDVERA state JSON to restore historical filings, candidates, and audit logs.
             </p>
 
@@ -226,7 +279,7 @@ export const SettingsView: React.FC = () => {
               value={importText}
               onChange={(e) => setImportText(e.target.value)}
               placeholder="Paste JSON snapshot string here..."
-              className="mt-3 w-full text-xs font-mono bg-slate-50 border border-slate-300 rounded p-2 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+              className="mt-3 w-full text-xs font-mono bg-slate-50 border border-slate-200 rounded p-2 focus:ring-1 focus:ring-blue-500 focus:outline-none"
             />
 
             {importStatus && (
@@ -237,9 +290,9 @@ export const SettingsView: React.FC = () => {
           <div className="pt-3 border-t border-slate-100">
             <button
               onClick={handleImport}
-              className="w-full py-2 px-3 border border-slate-300 hover:bg-slate-50 text-slate-800 rounded text-xs font-medium transition-colors flex items-center justify-center gap-1.5"
+              className="w-full py-2 px-3 border border-slate-200 hover:bg-slate-50 text-slate-800 rounded text-xs font-medium transition-colors flex items-center justify-center gap-1.5 shadow-xs"
             >
-              <Upload className="w-3.5 h-3.5" />
+              <Upload className="w-3.5 h-3.5 text-slate-600" />
               Restore Snapshot
             </button>
           </div>

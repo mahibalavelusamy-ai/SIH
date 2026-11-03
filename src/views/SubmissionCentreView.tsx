@@ -4,6 +4,10 @@ import { StudentEnrolment, RowOutcome, Submission, ValidationFinding } from '../
 import { processSubmissionBatch, DEFAULT_RULES } from '../services/rulesEngine';
 import { maskApaarId } from '../services/tperEngine';
 import { validateUploadFileConstraints, sanitizeInputFormula, sanitizeCsvCell } from '../services/securityService';
+import { PageHeader } from '../components/ui/PageHeader';
+import { MetricCard } from '../components/ui/MetricCard';
+import { StatusIndicator } from '../components/ui/StatusIndicator';
+import { DetailDrawer } from '../components/ui/DetailDrawer';
 import {
   UploadCloud,
   FileSpreadsheet,
@@ -571,42 +575,54 @@ export const SubmissionCentreView: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header and Sub-Tab Navigation */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 tracking-tight">Institutional Submission Centre</h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Stage, validate, and submit institutional student rosters against rules V-01 through V-12 and engine {ruleVersion}.
-          </p>
-        </div>
-
-        {/* 3 Main Modes: Ingest, Resubmit, History */}
-        <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs font-medium">
-          <button
-            onClick={() => setCentreMode('INGEST')}
-            className={`px-3 py-1.5 rounded transition-colors ${
-              centreMode === 'INGEST' ? 'bg-white text-slate-900 shadow-xs font-semibold' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            New Ingestion Batch
-          </button>
-          <button
-            onClick={() => setCentreMode('RESUBMIT')}
-            className={`px-3 py-1.5 rounded transition-colors ${
-              centreMode === 'RESUBMIT' ? 'bg-white text-slate-900 shadow-xs font-semibold' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Correct & Resubmit
-          </button>
-          <button
-            onClick={() => setCentreMode('HISTORY')}
-            className={`px-3 py-1.5 rounded transition-colors ${
-              centreMode === 'HISTORY' ? 'bg-white text-slate-900 shadow-xs font-semibold' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Filing History ({instSubmissions.length})
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        breadcrumbs={[
+          { label: 'IDVERA' },
+          { label: 'Ingestion & Reconciliation' },
+          { label: 'Submission Centre' },
+        ]}
+        title="Institutional Submission Centre"
+        subtitle={`Stage, validate, and submit institutional student rosters against rules V-01 through V-12 and engine ${ruleVersion}.`}
+        badge={
+          <span className="font-mono text-[11px] text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded font-semibold">
+            ENGINE {ruleVersion}
+          </span>
+        }
+        actions={
+          <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200/80 text-xs font-medium">
+            <button
+              onClick={() => setCentreMode('INGEST')}
+              className={`px-3 py-1 rounded transition-colors ${
+                centreMode === 'INGEST'
+                  ? 'bg-white text-slate-900 shadow-2xs font-semibold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              New Ingestion Batch
+            </button>
+            <button
+              onClick={() => setCentreMode('RESUBMIT')}
+              className={`px-3 py-1 rounded transition-colors ${
+                centreMode === 'RESUBMIT'
+                  ? 'bg-white text-slate-900 shadow-2xs font-semibold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Correct & Resubmit
+            </button>
+            <button
+              onClick={() => setCentreMode('HISTORY')}
+              className={`px-3 py-1 rounded transition-colors ${
+                centreMode === 'HISTORY'
+                  ? 'bg-white text-slate-900 shadow-2xs font-semibold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Filing History ({instSubmissions.length})
+            </button>
+          </div>
+        }
+      />
 
       {/* Role permission banner */}
       {!permissions.canSubmitData && role !== 'SYSTEM_ADMIN' && (
@@ -928,25 +944,34 @@ export const SubmissionCentreView: React.FC = () => {
             <div className="space-y-6">
               {/* Row Classification Metrics Strip */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-xs">
-                  <span className="text-[11px] font-medium text-slate-500 uppercase">Rows Evaluated</span>
-                  <div className="text-xl font-bold font-mono text-slate-900 mt-0.5">{validatedSummary.total}</div>
-                </div>
-
-                <div className="bg-white p-3 rounded-lg border border-teal-200 bg-teal-50/20 shadow-xs">
-                  <span className="text-[11px] font-medium text-teal-700 uppercase">Accepted (Certified)</span>
-                  <div className="text-xl font-bold font-mono text-teal-800 mt-0.5">{validatedSummary.accepted}</div>
-                </div>
-
-                <div className="bg-white p-3 rounded-lg border border-amber-200 bg-amber-50/20 shadow-xs">
-                  <span className="text-[11px] font-medium text-amber-700 uppercase">Flagged (Under Review)</span>
-                  <div className="text-xl font-bold font-mono text-amber-800 mt-0.5">{validatedSummary.flagged}</div>
-                </div>
-
-                <div className="bg-white p-3 rounded-lg border border-red-200 bg-red-50/20 shadow-xs">
-                  <span className="text-[11px] font-medium text-red-700 uppercase">Rejected (Quality Failure)</span>
-                  <div className="text-xl font-bold font-mono text-red-800 mt-0.5">{validatedSummary.rejected}</div>
-                </div>
+                <MetricCard
+                  label="Rows Evaluated"
+                  value={validatedSummary.total}
+                  subValue="Staged dataset records"
+                  tone="indigo"
+                />
+                <MetricCard
+                  label="Accepted (Certified)"
+                  value={validatedSummary.accepted}
+                  subValue="All rules passed"
+                  trend={{
+                    value: `${validatedSummary.total > 0 ? Math.round((validatedSummary.accepted / validatedSummary.total) * 100) : 0}%`,
+                    isPositive: true,
+                  }}
+                  tone="teal"
+                />
+                <MetricCard
+                  label="Flagged (Under Review)"
+                  value={validatedSummary.flagged}
+                  subValue="Warnings or TPER overlap"
+                  tone="amber"
+                />
+                <MetricCard
+                  label="Rejected (Quality Failure)"
+                  value={validatedSummary.rejected}
+                  subValue="Statutory format errors"
+                  tone="rose"
+                />
               </div>
 
               {/* Main Pre-Validation Table Card */}
@@ -1468,28 +1493,20 @@ export const SubmissionCentreView: React.FC = () => {
         </div>
       )}
 
-      {/* Snapshot Drawer Modal */}
-      {inspectingSubmission && (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg border border-slate-200 shadow-xl max-w-4xl w-full max-h-[85vh] flex flex-col overflow-hidden">
-            <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-              <div>
-                <h3 className="text-sm font-bold text-slate-900 font-mono">
-                  Snapshot Archive: {inspectingSubmission.id}
-                </h3>
-                <p className="text-xs text-slate-500 font-mono">
-                  Engine {inspectingSubmission.ruleEngineVersion} · {inspectingSubmission.records.length} Records Preserved
-                </p>
-              </div>
-              <button
-                onClick={() => setInspectingSubmission(null)}
-                className="p-1 hover:bg-slate-200 rounded text-slate-400 hover:text-slate-700"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-4 flex-1 overflow-y-auto">
+      {/* Snapshot Slide-over Drawer */}
+      <DetailDrawer
+        isOpen={Boolean(inspectingSubmission)}
+        onClose={() => setInspectingSubmission(null)}
+        title={inspectingSubmission ? `Snapshot Archive: ${inspectingSubmission.id}` : ''}
+        subtitle={
+          inspectingSubmission
+            ? `Engine ${inspectingSubmission.ruleEngineVersion} · ${inspectingSubmission.records.length} Records Preserved`
+            : undefined
+        }
+      >
+        {inspectingSubmission && (
+          <div className="space-y-4">
+            <div className="overflow-x-auto border border-slate-200 rounded-lg">
               <table className="w-full text-left text-xs divide-y divide-slate-200">
                 <thead className="bg-slate-50 font-mono text-[11px] uppercase">
                   <tr>
@@ -1504,17 +1521,7 @@ export const SubmissionCentreView: React.FC = () => {
                   {inspectingSubmission.records.map((r) => (
                     <tr key={r.id} className="hover:bg-slate-50">
                       <td className="py-2 px-2.5">
-                        <span
-                          className={`text-[10px] px-1.5 py-0.2 rounded font-bold border ${
-                            r.rowOutcome === 'ACCEPTED'
-                              ? 'bg-teal-50 text-teal-700 border-teal-200'
-                              : r.rowOutcome === 'FLAGGED'
-                              ? 'bg-amber-50 text-amber-700 border-amber-200'
-                              : 'bg-red-50 text-red-700 border-red-200'
-                          }`}
-                        >
-                          {r.rowOutcome}
-                        </span>
+                        <StatusIndicator status={r.rowOutcome || 'PENDING'} size="sm" />
                       </td>
                       <td className="py-2 px-2.5 font-bold text-slate-900">{r.studentReference}</td>
                       <td className="py-2 px-2.5 font-sans text-slate-800">{r.studentName || '—'}</td>
@@ -1533,18 +1540,9 @@ export const SubmissionCentreView: React.FC = () => {
                 </tbody>
               </table>
             </div>
-
-            <div className="p-3 border-t border-slate-100 text-right bg-slate-50">
-              <button
-                onClick={() => setInspectingSubmission(null)}
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded text-xs font-medium"
-              >
-                Close Snapshot
-              </button>
-            </div>
           </div>
-        </div>
-      )}
+        )}
+      </DetailDrawer>
     </div>
   );
 };

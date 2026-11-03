@@ -166,37 +166,132 @@ const ARCHITECTURE_COMPONENTS: ComponentDetail[] = [
     prototypeImplementation: 'Synchronous adapter service validating against certified records and active candidate queues in browser state.',
     futureProductionGap: 'Rate-limited, mTLS-authenticated REST/GraphQL API for government employers, scholarship boards, and academic lenders.',
   },
+  {
+    id: 'JAN_PARICHAY_SSO',
+    name: 'National SSO Gateway (Jan Parichay / MeriPehchaan)',
+    tier: 'Tier 1: Enterprise Identity Gateway',
+    boundaryType: 'FUTURE',
+    summary:
+      'National Single Sign-On gateway integration providing OpenID Connect (OIDC) and SAML 2.0 authentication for institutional registrars, state council officers, and central regulators.',
+    inputs: ['Digital India auth tokens', 'Jan Parichay user profiles', 'Institutional delegation assertions'],
+    outputs: ['Digitally signed JWT bearer tokens with institutional tenancy claims'],
+    privacySafeguards: [
+      'Two-factor authentication with Aadhaar-based OTP and biometric authentication',
+      'Ephemeral session tokens with strict 15-minute inactivity timeouts',
+    ],
+    prototypeImplementation: 'Simulated via top-bar role selector with internal RBAC capability evaluation.',
+    futureProductionGap: 'Production Jan Parichay OAuth 2.0 client credentials registration and MeitY trust federation.',
+  },
+  {
+    id: 'HSM_SECURITY_MODULE',
+    name: 'Hardware Security Module (HSM) Tokenization Core',
+    tier: 'Tier 3: Cryptographic Hardware Boundary',
+    boundaryType: 'FUTURE',
+    summary:
+      'FIPS 140-3 Level 3 certified Hardware Security Module providing master HMAC key derivation, key rotation, and RFC 3161 cryptographic timestamping for audit ledger blocks.',
+    inputs: ['Raw student APAAR IDs', 'Master key derivation requests', 'Audit block hash signing payloads'],
+    outputs: ['Pseudonymized HMAC keyed identifiers', 'Hardware-signed RFC 3161 timestamps'],
+    privacySafeguards: [
+      'Non-exportable cryptographic keys contained strictly within tamper-resistant hardware boundaries',
+      'Zero plaintext exposure of raw identifiers to application memory',
+    ],
+    prototypeImplementation: 'Client-side deterministic HMAC simulation with Web Crypto API fallback.',
+    futureProductionGap: 'Cloud HSM cluster (AWS CloudHSM or Google Cloud HSM) managed by central regulatory authority.',
+  },
+  {
+    id: 'NATIONAL_APAAR_GATEWAY',
+    name: 'National APAAR / Digilocker Live Query Gateway',
+    tier: 'Tier 4: Statutory Federation Gateway',
+    boundaryType: 'FUTURE',
+    summary:
+      'Official MeitY / NDEAR production gateway executing real-time federated verification against the 12-digit Automated Permanent Academic Account Registry (APAAR) and Academic Bank of Credits (ABC).',
+    inputs: ['12-digit APAAR numbers', 'Institutional verification credentials', 'Consent tokens'],
+    outputs: ['Live certified academic standing records', 'Cryptographic Digilocker verification certificates'],
+    privacySafeguards: [
+      'Zero-knowledge proof (ZKP) queries confirming enrolment standing without downloading student transcripts',
+      'Mutual TLS (mTLS) with IP whitelisting and automated rate limiting',
+    ],
+    prototypeImplementation: 'Privacy-safe mock query adapter evaluating certified local submission records.',
+    futureProductionGap: 'Production API SLA contracts with Ministry of Education NDEAR / National Informatics Centre (NIC).',
+  },
 ];
 
 export const ArchitectureView: React.FC = () => {
   const [selectedComponentId, setSelectedComponentId] = useState<string>('TPER_ENGINE');
+  const [filterBoundary, setFilterBoundary] = useState<'ALL' | 'IMPLEMENTED' | 'SIMULATED' | 'FUTURE'>('ALL');
+
   const activeDetail = ARCHITECTURE_COMPONENTS.find((c) => c.id === selectedComponentId) || ARCHITECTURE_COMPONENTS[0];
+
+  const implementedCount = ARCHITECTURE_COMPONENTS.filter((c) => c.boundaryType === 'IMPLEMENTED').length;
+  const simulatedCount = ARCHITECTURE_COMPONENTS.filter((c) => c.boundaryType === 'SIMULATED').length;
+  const futureCount = ARCHITECTURE_COMPONENTS.filter((c) => c.boundaryType === 'FUTURE').length;
+
+  const isDimmed = (type: 'IMPLEMENTED' | 'SIMULATED' | 'FUTURE') =>
+    filterBoundary !== 'ALL' && filterBoundary !== type;
 
   return (
     <div className="space-y-6">
       {/* Header and Title */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 tracking-tight">System Architecture & Service Boundaries</h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Technical schematic detailing IDVERA's reconciliation pipeline, browser-implemented components, simulated boundaries, and future production interfaces.
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight font-heading">
+              System Architecture & Boundary Classification
+            </h1>
+            <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-blue-100 text-blue-800 border border-blue-200 font-semibold">
+              GovTech Blueprint
+            </span>
+          </div>
+          <p className="text-xs text-slate-500 mt-0.5 font-sans">
+            Technical schematic detailing IDVERA's reconciliation pipeline, distinguishing in-memory browser code, simulated demo facades, and enterprise production roadmap interfaces.
           </p>
         </div>
 
-        {/* Legend */}
-        <div className="flex flex-wrap items-center gap-3 text-xs font-mono">
-          <div className="flex items-center gap-1.5 bg-teal-50 border border-teal-200 px-2 py-1 rounded">
-            <div className="w-2.5 h-2.5 rounded-full bg-teal-500" />
-            <span className="text-teal-900 font-semibold">Implemented in Browser</span>
-          </div>
-          <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 px-2 py-1 rounded">
-            <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-            <span className="text-amber-900 font-semibold">Simulated Boundary</span>
-          </div>
-          <div className="flex items-center gap-1.5 bg-blue-50 border border-blue-200 px-2 py-1 rounded">
-            <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
-            <span className="text-blue-900 font-semibold">Future Production Service</span>
-          </div>
+        {/* Boundary Filter Tabs */}
+        <div className="flex flex-wrap items-center gap-1.5 bg-white p-1.5 rounded-lg border border-slate-200 shadow-2xs font-mono text-xs">
+          <button
+            onClick={() => setFilterBoundary('ALL')}
+            className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-colors ${
+              filterBoundary === 'ALL'
+                ? 'bg-slate-900 text-white'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            All Modules ({ARCHITECTURE_COMPONENTS.length})
+          </button>
+          <button
+            onClick={() => setFilterBoundary('IMPLEMENTED')}
+            className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-colors flex items-center gap-1.5 ${
+              filterBoundary === 'IMPLEMENTED'
+                ? 'bg-teal-600 text-white'
+                : 'text-teal-800 hover:bg-teal-50'
+            }`}
+          >
+            <span className="w-2 h-2 rounded-full bg-teal-400" />
+            Implemented ({implementedCount})
+          </button>
+          <button
+            onClick={() => setFilterBoundary('SIMULATED')}
+            className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-colors flex items-center gap-1.5 ${
+              filterBoundary === 'SIMULATED'
+                ? 'bg-amber-600 text-white'
+                : 'text-amber-800 hover:bg-amber-50'
+            }`}
+          >
+            <span className="w-2 h-2 rounded-full bg-amber-400" />
+            Simulated ({simulatedCount})
+          </button>
+          <button
+            onClick={() => setFilterBoundary('FUTURE')}
+            className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-colors flex items-center gap-1.5 ${
+              filterBoundary === 'FUTURE'
+                ? 'bg-blue-600 text-white'
+                : 'text-blue-800 hover:bg-blue-50'
+            }`}
+          >
+            <span className="w-2 h-2 rounded-full bg-blue-400" />
+            Future ({futureCount})
+          </button>
         </div>
       </div>
 
@@ -224,7 +319,7 @@ export const ArchitectureView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setSelectedComponentId('PORTALS')}
-                  className={`p-3 rounded-lg border-2 text-left transition-all ${
+                  className={`p-3 rounded-lg border-2 text-left transition-all ${isDimmed('IMPLEMENTED') ? 'opacity-30' : ''} ${
                     selectedComponentId === 'PORTALS'
                       ? 'border-blue-600 bg-blue-50/40 shadow-xs ring-1 ring-blue-500'
                       : 'border-teal-500/60 bg-teal-50/20 hover:border-teal-600'
@@ -245,7 +340,7 @@ export const ArchitectureView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setSelectedComponentId('ACCESS_CONTROL')}
-                  className={`p-3 rounded-lg border-2 text-left transition-all ${
+                  className={`p-3 rounded-lg border-2 text-left transition-all ${isDimmed('SIMULATED') ? 'opacity-30' : ''} ${
                     selectedComponentId === 'ACCESS_CONTROL'
                       ? 'border-blue-600 bg-blue-50/40 shadow-xs ring-1 ring-blue-500'
                       : 'border-amber-500/70 bg-amber-50/20 hover:border-amber-600'
@@ -280,7 +375,7 @@ export const ArchitectureView: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setSelectedComponentId('SUBMISSION_SERVICE')}
-                className={`w-full p-3.5 rounded-lg border-2 text-left transition-all ${
+                className={`w-full p-3.5 rounded-lg border-2 text-left transition-all ${isDimmed('IMPLEMENTED') ? 'opacity-30' : ''} ${
                   selectedComponentId === 'SUBMISSION_SERVICE'
                     ? 'border-blue-600 bg-blue-50/40 shadow-xs ring-1 ring-blue-500'
                     : 'border-teal-500/60 bg-teal-50/20 hover:border-teal-600'
@@ -318,7 +413,7 @@ export const ArchitectureView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setSelectedComponentId('VERSIONED_RULE_ENGINE')}
-                  className={`p-3 rounded-lg border-2 text-left transition-all ${
+                  className={`p-3 rounded-lg border-2 text-left transition-all ${isDimmed('IMPLEMENTED') ? 'opacity-30' : ''} ${
                     selectedComponentId === 'VERSIONED_RULE_ENGINE'
                       ? 'border-blue-600 bg-blue-50/40 shadow-xs ring-1 ring-blue-500'
                       : 'border-teal-500/60 bg-teal-50/20 hover:border-teal-600'
@@ -339,7 +434,7 @@ export const ArchitectureView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setSelectedComponentId('TPER_ENGINE')}
-                  className={`p-3 rounded-lg border-2 text-left transition-all ${
+                  className={`p-3 rounded-lg border-2 text-left transition-all ${isDimmed('IMPLEMENTED') ? 'opacity-30' : ''} ${
                     selectedComponentId === 'TPER_ENGINE'
                       ? 'border-blue-600 bg-blue-50/40 shadow-xs ring-1 ring-blue-500'
                       : 'border-teal-500/60 bg-teal-50/20 hover:border-teal-600'
@@ -375,7 +470,7 @@ export const ArchitectureView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setSelectedComponentId('DEMO_REPOSITORY')}
-                  className={`p-3 rounded-lg border-2 text-left transition-all ${
+                  className={`p-3 rounded-lg border-2 text-left transition-all ${isDimmed('IMPLEMENTED') ? 'opacity-30' : ''} ${
                     selectedComponentId === 'DEMO_REPOSITORY'
                       ? 'border-blue-600 bg-blue-50/40 shadow-xs ring-1 ring-blue-500'
                       : 'border-teal-500/60 bg-teal-50/20 hover:border-teal-600'
@@ -396,7 +491,7 @@ export const ArchitectureView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setSelectedComponentId('AUDIT_SERVICE')}
-                  className={`p-3 rounded-lg border-2 text-left transition-all ${
+                  className={`p-3 rounded-lg border-2 text-left transition-all ${isDimmed('IMPLEMENTED') ? 'opacity-30' : ''} ${
                     selectedComponentId === 'AUDIT_SERVICE'
                       ? 'border-blue-600 bg-blue-50/40 shadow-xs ring-1 ring-blue-500'
                       : 'border-teal-500/60 bg-teal-50/20 hover:border-teal-600'
@@ -417,7 +512,7 @@ export const ArchitectureView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setSelectedComponentId('MOCK_VERIFIER')}
-                  className={`p-3 rounded-lg border-2 text-left transition-all ${
+                  className={`p-3 rounded-lg border-2 text-left transition-all ${isDimmed('IMPLEMENTED') ? 'opacity-30' : ''} ${
                     selectedComponentId === 'MOCK_VERIFIER'
                       ? 'border-blue-600 bg-blue-50/40 shadow-xs ring-1 ring-blue-500'
                       : 'border-teal-500/60 bg-teal-50/20 hover:border-teal-600'
@@ -436,35 +531,81 @@ export const ArchitectureView: React.FC = () => {
               </div>
             </div>
 
-            {/* Boundary Divider */}
-            <div className="pt-4 border-t-2 border-dashed border-slate-300 space-y-2">
+            {/* Boundary Divider: FUTURE PRODUCTION HORIZON */}
+            <div className={`pt-4 border-t-2 border-dashed border-slate-300 space-y-2.5 ${filterBoundary === 'IMPLEMENTED' || filterBoundary === 'SIMULATED' ? 'opacity-40' : ''}`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5 text-xs font-bold font-mono text-slate-900">
                   <Lock className="w-3.5 h-3.5 text-blue-600" />
-                  <span>FUTURE PRODUCTION HORIZON (Gov Infrastructure Required)</span>
+                  <span>FUTURE PRODUCTION HORIZON (Click Node to Inspect Blueprint)</span>
                 </div>
-                <span className="text-[10px] font-mono bg-blue-50 text-blue-800 border border-blue-200 px-2 py-0.5 rounded">
-                  Requires Official MoE/MeitY Authorization
+                <span className="text-[10px] font-mono bg-blue-50 text-blue-800 border border-blue-200 px-2 py-0.5 rounded font-semibold">
+                  Enterprise Production Target
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
-                <div className="p-2.5 bg-slate-50 border border-blue-200 rounded text-slate-700">
-                  <strong className="block text-slate-900 text-xs">HSM Key Mgmt</strong>
-                  Hardware-isolated keys for APAAR pseudonyms.
-                </div>
-                <div className="p-2.5 bg-slate-50 border border-blue-200 rounded text-slate-700">
-                  <strong className="block text-slate-900 text-xs">PostgreSQL RLS</strong>
-                  Multi-tenant DB with regional institutional isolation.
-                </div>
-                <div className="p-2.5 bg-slate-50 border border-blue-200 rounded text-slate-700">
-                  <strong className="block text-slate-900 text-xs">Live APAAR API</strong>
-                  Official MoE/ABC DigiLocker integration.
-                </div>
-                <div className="p-2.5 bg-slate-50 border border-blue-200 rounded text-slate-700">
-                  <strong className="block text-slate-900 text-xs">WORM Vault</strong>
-                  Tamper-proof compliance audit storage.
-                </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                {/* Future 1: Jan Parichay SSO */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedComponentId('JAN_PARICHAY_SSO')}
+                  className={`p-3 rounded-lg border-2 text-left transition-all ${
+                    selectedComponentId === 'JAN_PARICHAY_SSO'
+                      ? 'border-blue-600 bg-blue-50/60 shadow-xs ring-1 ring-blue-500'
+                      : 'border-blue-300/80 bg-blue-50/30 hover:border-blue-500'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900">Jan Parichay SSO</span>
+                    <span className="text-[9px] font-mono text-blue-800 font-bold bg-blue-100 px-1.5 py-0.5 rounded">
+                      Future
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-600 mt-1 line-clamp-2">
+                    National Single Sign-On (OIDC/SAML 2.0) with MeriPehchaan trust federation.
+                  </p>
+                </button>
+
+                {/* Future 2: HSM Tokenization Core */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedComponentId('HSM_SECURITY_MODULE')}
+                  className={`p-3 rounded-lg border-2 text-left transition-all ${
+                    selectedComponentId === 'HSM_SECURITY_MODULE'
+                      ? 'border-blue-600 bg-blue-50/60 shadow-xs ring-1 ring-blue-500'
+                      : 'border-blue-300/80 bg-blue-50/30 hover:border-blue-500'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900">HSM Key Core</span>
+                    <span className="text-[9px] font-mono text-blue-800 font-bold bg-blue-100 px-1.5 py-0.5 rounded">
+                      Future
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-600 mt-1 line-clamp-2">
+                    FIPS 140-3 Hardware Security Module for isolated HMAC derivation & RFC 3161 timestamps.
+                  </p>
+                </button>
+
+                {/* Future 3: National APAAR Gateway */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedComponentId('NATIONAL_APAAR_GATEWAY')}
+                  className={`p-3 rounded-lg border-2 text-left transition-all ${
+                    selectedComponentId === 'NATIONAL_APAAR_GATEWAY'
+                      ? 'border-blue-600 bg-blue-50/60 shadow-xs ring-1 ring-blue-500'
+                      : 'border-blue-300/80 bg-blue-50/30 hover:border-blue-500'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900">National APAAR Gateway</span>
+                    <span className="text-[9px] font-mono text-blue-800 font-bold bg-blue-100 px-1.5 py-0.5 rounded">
+                      Future
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-600 mt-1 line-clamp-2">
+                    Live NDEAR / ABC DigiLocker federation with zero-knowledge proof queries.
+                  </p>
+                </button>
               </div>
             </div>
           </div>

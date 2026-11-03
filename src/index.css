@@ -5,12 +5,22 @@
     --font-sans: 'Public Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     --font-heading: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     --font-mono: 'JetBrains Mono', monospace;
+
+    /* IDVERA Official Palette */
+    --color-idvera-navy: #101C32;
+    --color-idvera-blue: #315EAA;
+    --color-idvera-teal: #168C83;
+    --color-idvera-bg: #F5F7FA;
+    --color-idvera-white: #FFFFFF;
+    --color-idvera-slate: #64748B;
+    --color-idvera-amber: #D99032;
+    --color-idvera-red: #C94C4C;
   }
 
   body {
     font-family: var(--font-sans);
-    background-color: #f8fafc;
-    color: #0f172a;
+    background-color: #F5F7FA;
+    color: #101C32;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -18,11 +28,12 @@
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-heading);
     letter-spacing: -0.015em;
+    color: #101C32;
   }
 
   /* Accessible focus ring */
   *:focus-visible {
-    outline: 2px solid #2563eb;
+    outline: 2px solid #315EAA;
     outline-offset: 2px;
   }
 }
@@ -34,14 +45,14 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: #F5F7FA;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #CBD5E1;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #64748B;
 }

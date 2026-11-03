@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { PageHeader } from '../components/ui/PageHeader';
+import { MetricCard } from '../components/ui/MetricCard';
 import {
   Terminal,
   Play,
@@ -1015,83 +1017,94 @@ export const TestBenchView: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header and Controls */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-            Prototype Test Bench & Verification Metrics
-          </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Automated repeatable unit test harness and reproducible synthetic performance benchmark.
-          </p>
-        </div>
+      <PageHeader
+        breadcrumbs={[
+          { label: 'IDVERA' },
+          { label: 'Quality Assurance' },
+          { label: 'Test Bench & Verification Metrics' },
+        ]}
+        title="Prototype Test Bench & Verification Metrics"
+        subtitle="Automated repeatable unit test harness and reproducible synthetic performance benchmark."
+        badge={
+          <span className="font-mono text-[11px] text-teal-800 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded font-medium">
+            PASS RATE {passRate}%
+          </span>
+        }
+        actions={
+          <div className="flex items-center gap-2">
+            <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200/80 text-xs font-medium">
+              <button
+                onClick={() => setActiveTab('TEST_SUITE')}
+                className={`px-3 py-1 rounded transition-colors ${
+                  activeTab === 'TEST_SUITE'
+                    ? 'bg-white text-slate-900 shadow-2xs font-semibold'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Test Suite ({totalTests})
+              </button>
+              <button
+                onClick={() => setActiveTab('BENCHMARK')}
+                className={`px-3 py-1 rounded transition-colors ${
+                  activeTab === 'BENCHMARK'
+                    ? 'bg-white text-slate-900 shadow-2xs font-semibold'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Synthetic Benchmark
+              </button>
+              <button
+                onClick={() => setActiveTab('CHECKLIST')}
+                className={`px-3 py-1 rounded transition-colors ${
+                  activeTab === 'CHECKLIST'
+                    ? 'bg-white text-slate-900 shadow-2xs font-semibold'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Acceptance Checklist (10)
+              </button>
+            </div>
 
-        <div className="flex items-center gap-2">
-          {/* Tab Selector */}
-          <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs">
             <button
-              onClick={() => setActiveTab('TEST_SUITE')}
-              className={`px-3 py-1 rounded font-medium transition-colors ${
-                activeTab === 'TEST_SUITE' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600'
-              }`}
+              onClick={executeTests}
+              disabled={isRunning}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#0F172A] hover:bg-slate-800 text-white rounded text-xs font-medium transition-colors shadow-xs"
             >
-              Test Suite ({totalTests})
-            </button>
-            <button
-              onClick={() => setActiveTab('BENCHMARK')}
-              className={`px-3 py-1 rounded font-medium transition-colors ${
-                activeTab === 'BENCHMARK' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600'
-              }`}
-            >
-              Synthetic Benchmark
-            </button>
-            <button
-              onClick={() => setActiveTab('CHECKLIST')}
-              className={`px-3 py-1 rounded font-medium transition-colors ${
-                activeTab === 'CHECKLIST' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600'
-              }`}
-            >
-              Acceptance Checklist (10)
+              <RotateCcw className={`w-3.5 h-3.5 text-blue-400 ${isRunning ? 'animate-spin' : ''}`} />
+              Re-run All Tests
             </button>
           </div>
-
-          <button
-            onClick={executeTests}
-            disabled={isRunning}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-medium transition-colors shadow-xs"
-          >
-            <RotateCcw className={`w-3.5 h-3.5 ${isRunning ? 'animate-spin' : ''}`} />
-            Re-run All Tests
-          </button>
-        </div>
-      </div>
+        }
+      />
 
       {/* KPI Ribbon derived from execution results */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-xs">
-          <span className="text-[11px] font-medium text-slate-500 uppercase">Test Pass Rate</span>
-          <div className="text-xl font-bold font-mono text-teal-700 mt-0.5">{passRate}%</div>
-          <span className="text-[10px] text-slate-400">
-            {passedTests} of {totalTests} suites passed
-          </span>
-        </div>
-
-        <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-xs">
-          <span className="text-[11px] font-medium text-slate-500 uppercase">Execution Duration</span>
-          <div className="text-xl font-bold font-mono text-slate-900 mt-0.5">{benchmarkDurationMs} ms</div>
-          <span className="text-[10px] text-slate-400">Client-side synchronous run</span>
-        </div>
-
-        <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-xs">
-          <span className="text-[11px] font-medium text-slate-500 uppercase">Synthetic Dataset</span>
-          <div className="text-xl font-bold font-mono text-slate-900 mt-0.5">{records.length} Rows</div>
-          <span className="text-[10px] text-slate-400">Across 5 institutions</span>
-        </div>
-
-        <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-xs">
-          <span className="text-[11px] font-medium text-slate-500 uppercase">Rule Version Tested</span>
-          <div className="text-xl font-bold font-mono text-blue-700 mt-0.5">{ruleVersion}</div>
-          <span className="text-[10px] text-slate-400">Rules V-01 to V-12</span>
-        </div>
+        <MetricCard
+          label="Test Pass Rate"
+          value={`${passRate}%`}
+          subValue={`${passedTests} of ${totalTests} suites passed`}
+          trend={{
+            value: `${passRate}%`,
+            isPositive: passRate === 100,
+          }}
+          tone="teal"
+        />
+        <MetricCard
+          label="Execution Duration"
+          value={`${benchmarkDurationMs} ms`}
+          subValue="Client-side synchronous run"
+        />
+        <MetricCard
+          label="Synthetic Dataset"
+          value={`${records.length} Rows`}
+          subValue="Across 5 institutions"
+          tone="indigo"
+        />
+        <MetricCard
+          label="Rule Engine"
+          value={ruleVersion}
+          subValue="Rules V-01 to V-12"
+        />
       </div>
 
       {/* TAB 1: UNIT TEST SUITE */}
